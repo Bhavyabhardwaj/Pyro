@@ -1,6 +1,6 @@
 export abstract class CustomError extends Error {
     abstract statusCode: number;
-    abstract isOptional: boolean;
+    abstract isOperational: boolean;
 
     constructor(message: string) {
         super(message);
@@ -8,4 +8,4 @@ export abstract class CustomError extends Error {
         Error.captureStackTrace(this, this.constructor);
     }
     abstract serializeErrors(): { message: string; field?: string }[];
-}
+} 
