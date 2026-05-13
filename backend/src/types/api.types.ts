@@ -5,7 +5,7 @@ export interface User {
     username: string;
     email: string;
     password: string;
-    avatar?: string;
+    avatar?: string | null;
     createdAt: Date;
     updatedAt: Date;
 }
@@ -23,11 +23,13 @@ export interface LoginRequest {
 
 export interface AuthResponse {
     token: string;
+    success: boolean;
+    timestamp: string;
     user :{
         id: string;
         username: string;
         email: string;
-        avatar?: string;
+        avatar?: string | null;
     };
 }
 
