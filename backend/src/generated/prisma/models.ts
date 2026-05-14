@@ -8,8 +8,8 @@
  *
  * 🟢 You can import this file directly.
  */
-export type * from './models/User.js'
-export type * from './models/Message.js'
-export type * from './models/Room.js'
-export type * from './models/RoomMember.js'
-export type * from './commonInputTypes.js'
+export type * from './models/User'
+export type * from './models/Message'
+export type * from './models/Room'
+export type * from './models/RoomMember'
+export type * from './commonInputTypes'
