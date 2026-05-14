@@ -33,11 +33,6 @@ export interface AuthResponse {
     };
 }
 
-export interface AuthenticatedRequest extends Request {
-    user?: {
-        userId: string;
-    };
-}
 
 export interface ApiResponse<T> {
     success: boolean;

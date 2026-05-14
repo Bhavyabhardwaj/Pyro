@@ -1,9 +1,8 @@
-import type { AuthenticatedRequest } from "../types/api.types";
-import type {  Response, NextFunction } from "express";
+import type {  Response, NextFunction, Request } from "express";
 import { tokenUtils } from "../utils";
 import  { UnauthorizedError } from "../errors";
 
-export const authMiddleware = (req: AuthenticatedRequest, _res: Response, next: NextFunction): void => {
+export const authMiddleware = (req: Request, _res: Response, next: NextFunction): void => {
     const authHeader = (req.headers as any).authorization as string | undefined;
     if (!authHeader || !authHeader.startsWith("Bearer ")) {
         return next(new UnauthorizedError("Authorization header missing or malformed"));
