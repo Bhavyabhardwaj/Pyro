@@ -1,4 +1,4 @@
-import { Express } from "express";
+import  { Express } from "express";
 
 export interface User {
     id: string;
@@ -33,11 +33,9 @@ export interface AuthResponse {
     };
 }
 
-export interface AuthenticatedRequest extends Express.Request {
+export interface AuthenticatedRequest extends Request {
     user?: {
-        id: number;
-        username: string;
-        email: string;
+        userId: string;
     };
 }
 
