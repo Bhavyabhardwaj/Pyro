@@ -1,6 +1,6 @@
 import express from "express";
 import cors from "cors";
-import { authRouter } from "./routes";
+import { authRouter, roomRouter } from "./routes";
 import { errorMiddleware } from "./middlewares";
 
 const app = express();
@@ -13,6 +13,7 @@ app.get("/", (req, res) => {
 })
 
 app.use("/api/auth", authRouter);
+app.use("/api/rooms", roomRouter);
 
 app.use(errorMiddleware);
 export default app;

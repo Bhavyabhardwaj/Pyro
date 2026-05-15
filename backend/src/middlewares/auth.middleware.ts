@@ -15,6 +15,6 @@ export const authMiddleware = (req: Request, _res: Response, next: NextFunction)
     if (!decoded) {
         return next(new UnauthorizedError("Invalid or expired token"));
     }
-    req.user = {userId: decoded.userId};
+    (req as any).user = {userId: decoded.userId};
     next();
 }
