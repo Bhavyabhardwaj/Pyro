@@ -39,6 +39,34 @@ export const roomService = {
             },
         });
         return rooms;
+    },
+    async joinRoom(roomId: string, userId: string) {
+        const room = await prisma.room.findUnique({
+            where: {
+                id: roomId,
+            },
+        });
+        if (!room) {
+            throw new BadRequestError("Room not found");
+        }
+        const existingMember = await prisma.roomMember.findUnique({
+            where: {
+                userId_roomId: {
+                    roomId,
+                    userId,
+                },
+            },
+        });
+        if (existingMember) {
+            throw new ConflictError("User is already a member of this room");
+        }
+        const roomMember = await prisma.roomMember.create({
+            data: {
+                roomId,
+                userId,
+            },
+        });
+        return roomMember;
     }
 };
 
