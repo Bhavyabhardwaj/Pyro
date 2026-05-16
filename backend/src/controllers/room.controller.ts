@@ -24,13 +24,11 @@ export const roomController = {
             next(error);
         }
     },
-    async joinRoom(req: Request, res: Response, next: NextFunction) {
+    async joinRoom(req: Request<{ roomId: string }>, res: Response, next: NextFunction) {
         try {
             const roomId = req.params.roomId;
             const userId = (req as any).user?.userId;
-            if (typeof roomId !== "string") {
-                return responseUtils.error(res, "Invalid room id", 400);
-            }
+            
             await roomService.joinRoom(roomId, userId);
             return responseUtils.success(res, null, "Joined room successfully");
         } catch (error) {
