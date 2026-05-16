@@ -14,5 +14,14 @@ export const roomController = {
         } catch (error) {
             next(error);
         }
+    },
+    async getRooms(req: Request, res: Response, next: NextFunction) {
+        try {
+            const userId = (req as any).user?.userId;
+            const rooms = await roomService.getRooms(userId);
+            return responseUtils.success(res, rooms, "Rooms retrieved successfully");
+        } catch (error) {
+            next(error);
+        }
     }
 }

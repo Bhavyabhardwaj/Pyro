@@ -25,6 +25,20 @@ export const roomService = {
             },
         });
         return room;
+    },
+    async getRooms(userId: string) {
+        const rooms = await prisma.roomMember.findMany({
+            where: {
+                userId
+            },
+            include: {
+                room: true,
+            },
+            orderBy: {
+                createdAt: "desc",
+            },
+        });
+        return rooms;
     }
 };
 
