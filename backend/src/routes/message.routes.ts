@@ -8,5 +8,6 @@ const router = Router({
 });
 
 router.post("/", authMiddleware, messageController.sendMessage);
+router.get("/", authMiddleware, messageController.getRoomMessages);
 
 export const messageRoutes = router;

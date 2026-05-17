@@ -15,5 +15,16 @@ export const messageController = {
         } catch (error) {
             next(error);
         }
+    },
+    async getRoomMessages(req: Request<{ roomId: string }>, res: Response, next: NextFunction) {
+        try {
+            const userId = (req as any).user?.userId;
+            const roomId = req.params.roomId;
+
+            const messages = await messageService.getRoomMessages(roomId, userId);
+            return responseUtils.success(res, messages, "Messages retrieved successfully");
+        } catch (error) {
+            next(error);
+        }
     }
 };

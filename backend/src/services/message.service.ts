@@ -44,5 +44,38 @@ export const messageService = {
         });
 
         return message;
+    },
+    async getRoomMessages(roomId: string, userId: string) {
+        const roomMember = await prisma.roomMember.findUnique({
+            where: {
+                userId_roomId: {
+                    userId,
+                    roomId,
+                },
+            },
+        });
+        if (!roomMember) {
+            throw new BadRequestError("You are not a member of this room");
+        }
+
+        const messages = await prisma.message.findMany({
+            where: {
+                roomId,
+            },
+            include: {
+                author:{
+                    select: {
+                        id: true,
+                        username: true,
+                        avatar: true,
+                    }
+                }
+            },
+            orderBy: {
+                createdAt: "asc",
+            },
+        });
+
+        return messages;
     }
 }
