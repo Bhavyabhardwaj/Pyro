@@ -4,8 +4,10 @@ import { AuthenticatedSocket } from "./types";
 import type { Server as HTTPServer } from "http";
 import { tokenUtils } from "../utils";
 
+let io: Server;
+
 export const initializeSocket = (server: HTTPServer) => {
-    const io = new Server(server, {
+    io = new Server(server, {
         cors: {
             origin: "*",
         },
@@ -32,10 +34,26 @@ export const initializeSocket = (server: HTTPServer) => {
     io.on("connection", (socket: AuthenticatedSocket) => {
         console.log(`User connected: ${socket.id}`);
 
+        socket.on("joinRoom", (roomId: string) => {
+            socket.join(roomId);
+            console.log(`User ${socket.id} joined room ${roomId}`);
+        });
+
+        socket.on("leaveRoom", (roomId: string) => {
+            socket.leave(roomId);
+            console.log(`User ${socket.id} left room ${roomId}`);
+        });
+
         socket.on("disconnect", () => {
             console.log(`User disconnected: ${socket.id}`);
         });
     });
+    return io;
+};
 
+export const getIO = () => {
+    if (!io) {
+        throw new Error("Socket.io not initialized");
+    }
     return io;
 };

@@ -1,5 +1,6 @@
 import { BadRequestError } from "../errors";
 import prisma from "../lib/prisma";
+import { getIO } from "../socket";
 
 interface MessageData {
     roomId: string;
@@ -41,6 +42,11 @@ export const messageService = {
                     },
                 },
             },
+        });
+        getIO().to(roomId).emit("newMessage", {
+            id: message.id,
+            content: message.content,
+            authorId: message.authorId,
         });
 
         return message;
