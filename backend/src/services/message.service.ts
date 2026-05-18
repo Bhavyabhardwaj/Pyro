@@ -41,7 +41,11 @@ export const messageService = {
                         id: userId,
                     },
                 },
+                
             },
+            include:{
+                author: true
+            }
         });
         getIO().to(roomId).emit("newMessage", {
             id: message.id,
