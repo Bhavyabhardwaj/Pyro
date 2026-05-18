@@ -41,17 +41,16 @@ export const messageService = {
                         id: userId,
                     },
                 },
-                
+
             },
-            include:{
+            include: {
                 author: true
             }
         });
-        getIO().to(roomId).emit("newMessage", {
-            id: message.id,
-            content: message.content,
-            authorId: message.authorId,
-        });
+        getIO().to(roomId).emit(
+            "newMessage",
+            message
+        );
 
         return message;
     },
@@ -73,7 +72,7 @@ export const messageService = {
                 roomId,
             },
             include: {
-                author:{
+                author: {
                     select: {
                         id: true,
                         username: true,

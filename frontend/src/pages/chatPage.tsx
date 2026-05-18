@@ -1,6 +1,9 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { roomService } from "../services/room.service";
 import { messageService } from "../services/message.service";
+import { Socket } from "socket.io-client";
+import { createSocket } from "../lib/socket";
+import { useAuth } from "../hooks/useAuth";
 
 interface RoomMember {
     room: {
@@ -14,7 +17,7 @@ interface Message {
     content: string;
     author: {
         username: string;
-    }
+    };
 }
 
 const ChatPage = () => {
@@ -26,6 +29,9 @@ const ChatPage = () => {
     } | null>(null);
     const [messages, setMessages] = useState<Message[]>([]);
     const [messageInput, setMessageInput] = useState("");
+    const socketRef = useRef<Socket | null>(null);
+
+    const { token } = useAuth();
 
     const handleCreateRoom = async () => {
         try {
@@ -38,12 +44,20 @@ const ChatPage = () => {
     };
     const handleSendMessage = async () => {
         if (!selectedRoom || !messageInput.trim()) return;
+
         try {
-            const response = await messageService.sendMessage(selectedRoom.id, messageInput);
-            setMessages((prevMessages) => [...prevMessages, response.data]);
+            await messageService.sendMessage(
+                selectedRoom.id,
+                messageInput,
+            );
+
             setMessageInput("");
+
         } catch (error) {
-            console.error("Error sending message:", error);
+            console.error(
+                "Error sending message:",
+                error
+            );
         }
     };
     useEffect(() => {
@@ -71,6 +85,41 @@ const ChatPage = () => {
             }
         };
         fetchMessages();
+    }, [selectedRoom]);
+
+    useEffect(() => {
+        if (!token) {
+            return;
+        }
+
+        const newSocket = createSocket(token);
+        socketRef.current = newSocket;
+
+        newSocket.on("connect", () => {
+            console.log("Socket connected:", newSocket.id);
+        });
+
+        newSocket.on("newMessage", (message) => {
+            setMessages((prev) => [...prev, message]);
+        });
+
+        if (selectedRoom) {
+            newSocket.emit("joinRoom", selectedRoom.id);
+        }
+
+        return () => {
+            newSocket.off("newMessage");
+            newSocket.disconnect();
+            socketRef.current = null;
+        };
+    }, [selectedRoom, token]);
+
+    useEffect(() => {
+        if (!selectedRoom || !socketRef.current) {
+            return;
+        }
+
+        socketRef.current.emit("joinRoom", selectedRoom.id);
     }, [selectedRoom]);
 
     return (
@@ -106,12 +155,8 @@ const ChatPage = () => {
             <div>
                 {messages.map((message) => (
                     <div key={message.id}>
-                        <strong>
-                            {message.author.username}
-                        </strong>
-                        <p>
-                            {message.content}
-                        </p>
+                        <strong>{message.author.username}</strong>
+                        <p>{message.content}</p>
                     </div>
                 ))}
             </div>
@@ -121,19 +166,9 @@ const ChatPage = () => {
                         type="text"
                         placeholder="Type message..."
                         value={messageInput}
-                        onChange={(e) =>
-                            setMessageInput(
-                                e.target.value
-                            )
-                        }
+                        onChange={(e) => setMessageInput(e.target.value)}
                     />
-                    <button
-                        onClick={
-                            handleSendMessage
-                        }
-                    >
-                        Send
-                    </button>
+                    <button onClick={handleSendMessage}>Send</button>
                 </div>
             )}
         </div>
