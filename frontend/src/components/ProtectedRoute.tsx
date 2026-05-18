@@ -15,7 +15,7 @@ const ProtectedRoute = ({
 
     if (!token) {
         return (
-            <Navigate to="/login" />
+            <Navigate to="/login" replace />
         );
     }
 

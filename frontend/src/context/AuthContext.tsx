@@ -1,17 +1,6 @@
-import React, { createContext, useState } from "react";
-
-interface User {
-    username: string;
-}
-
-interface AuthContextType {
-    user: User | null;
-    token: string | null;
-    login: (user: User, token: string) => void;
-    logout: () => void;
-}
-
-export const AuthContext = createContext<AuthContextType | null>(null);
+import React, { useState } from "react";
+import type { User } from "../types/api";
+import { AuthContext } from "./auth-context";
 
 const getInitialToken = () => localStorage.getItem("token");
 
