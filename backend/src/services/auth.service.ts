@@ -11,6 +11,10 @@ interface AuthResponse {
     user: Omit<User, "password">;
 }
 
+interface AvatarResponse {
+    user: Omit<User, "password">;
+}
+
 export const authService = {
     async registerUser(userData: RegisterRequest): Promise<AuthResponse> {
         const email = userData.email.toLowerCase().trim();
@@ -85,6 +89,48 @@ export const authService = {
 
         return {
             token,
+            user: safeUser,
+        };
+    },
+
+    async getMe(userId: string): Promise<{ user: Omit<User, "password"> }> {
+        if (!userId) {
+            throw new UnauthorizedError("User not authenticated");
+        }
+
+        const user = await prisma.user.findUnique({
+            where: { id: userId },
+        });
+
+        if (!user) {
+            throw new UnauthorizedError("User not found");
+        }
+
+        const { password: _, ...safeUser } = user;
+
+        return {
+            user: safeUser,
+        };
+    },
+
+    async updateAvatar(userId: string, avatar: string | null): Promise<AvatarResponse> {
+        if (!userId) {
+            throw new UnauthorizedError("User not authenticated");
+        }
+
+        const normalizedAvatar = typeof avatar === "string" ? avatar.trim() : null;
+        if (normalizedAvatar && normalizedAvatar.length > 2_000_000) {
+            throw new BadRequestError("Avatar is too large");
+        }
+
+        const user = await prisma.user.update({
+            where: { id: userId },
+            data: { avatar: normalizedAvatar || null },
+        });
+
+        const { password: _, ...safeUser } = user;
+
+        return {
             user: safeUser,
         };
     },

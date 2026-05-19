@@ -1,7 +1,9 @@
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
+import { AnimatePresence, motion } from "framer-motion";
 import { useNavigate } from "react-router-dom";
 import { roomService } from "../services/room.service";
 import { messageService } from "../services/message.service";
+import { authService } from "../services/auth.service";
 import { Socket } from "socket.io-client";
 import { createSocket } from "../lib/socket";
 import { useAuth } from "../hooks/useAuth";
@@ -12,6 +14,7 @@ import { RoomSidebar } from "../components/chat/RoomSidebar";
 import { ChatHeader } from "../components/chat/ChatHeader";
 import { MessageList } from "../components/chat/MessageList";
 import { MessageComposer } from "../components/chat/MessageComposer";
+import { CommandPalette } from "../components/chat/CommandPalette";
 
 const ChatPage = () => {
     const [rooms, setRooms] = useState<RoomMember[]>([]);
@@ -24,6 +27,9 @@ const ChatPage = () => {
     const [replyTo, setReplyTo] = useState<ChatMessage | null>(null);
     const [editingMessage, setEditingMessage] = useState<ChatMessage | null>(null);
     const [typingUsers, setTypingUsers] = useState<string[]>([]);
+    const [isConnected, setIsConnected] = useState(false);
+    const [isCommandOpen, setIsCommandOpen] = useState(false);
+    const [isMobileRoomsOpen, setIsMobileRoomsOpen] = useState(false);
     const [unreadCounts, setUnreadCounts] = useState<Record<string, number>>({});
     const [isRoomsLoading, setIsRoomsLoading] = useState(true);
     const [isMessagesLoading, setIsMessagesLoading] = useState(false);
@@ -34,10 +40,10 @@ const ChatPage = () => {
     const socketRef = useRef<Socket | null>(null);
     const messagesEndRef = useRef<HTMLDivElement | null>(null);
     const selectedRoomIdRef = useRef<string | null>(null);
-    const typingTimeoutRef = useRef<number | null>(null);
+    const typingStopTimeoutRef = useRef<number | null>(null);
     const attachmentUrlsRef = useRef<Set<string>>(new Set());
 
-    const { token, user, logout } = useAuth();
+    const { token, user, logout, updateUser } = useAuth();
     const navigate = useNavigate();
 
     const createId = () =>
@@ -45,7 +51,19 @@ const ChatPage = () => {
             ? crypto.randomUUID()
             : `${Date.now()}-${Math.random().toString(16).slice(2)}`;
 
-    const clearAttachments = () => {
+    const getUserAvatar = useCallback(() => {
+        if (user?.avatar) return user.avatar;
+        try {
+            const stored = localStorage.getItem("user");
+            if (!stored) return undefined;
+            const parsed = JSON.parse(stored) as { avatar?: string | null };
+            return parsed?.avatar ?? undefined;
+        } catch {
+            return undefined;
+        }
+    }, [user]);
+
+    const clearAttachments = useCallback(() => {
         setComposerAttachments((prev) => {
             prev.forEach((attachment) => {
                 URL.revokeObjectURL(attachment.url);
@@ -53,7 +71,7 @@ const ChatPage = () => {
             });
             return [];
         });
-    };
+    }, []);
 
     const handleAddAttachments = (files: File[]) => {
         if (!files.length) return;
@@ -88,23 +106,72 @@ const ChatPage = () => {
         });
     };
 
-    const mergeIncomingMessage = (incoming: ChatMessage) => {
+    const syncAvatar = useCallback((message: ChatMessage) => {
+        const avatar = getUserAvatar();
+        if (!avatar || (!user?.id && !user?.username)) return message;
+        const matchesId = user?.id && message.author.id === user.id;
+        const matchesName = user?.username && message.author.username === user.username;
+        const nextMessage = matchesId || matchesName
+            ? { ...message, author: { ...message.author, avatar } }
+            : message;
+        if (!nextMessage.replyTo) return nextMessage;
+        const replyMatchesId = user?.id && nextMessage.replyTo.author.id === user.id;
+        const replyMatchesName =
+            user?.username && nextMessage.replyTo.author.username === user.username;
+        if (!replyMatchesId && !replyMatchesName) return nextMessage;
+        return {
+            ...nextMessage,
+            replyTo: {
+                ...nextMessage.replyTo,
+                author: { ...nextMessage.replyTo.author, avatar },
+            },
+        };
+    }, [getUserAvatar, user]);
+
+    const applyAvatarOverride = useCallback((message: ChatMessage, avatarUrl: string) => {
+        if (!user?.id && !user?.username) return message;
+        const matchesId = user?.id && message.author.id === user.id;
+        const matchesName = user?.username && message.author.username === user.username;
+        if (!matchesId && !matchesName) return message;
+
+        const nextMessage = {
+            ...message,
+            author: { ...message.author, avatar: avatarUrl },
+        };
+
+        if (!nextMessage.replyTo) return nextMessage;
+        const replyMatchesId = user?.id && nextMessage.replyTo.author.id === user.id;
+        const replyMatchesName =
+            user?.username && nextMessage.replyTo.author.username === user.username;
+        if (!replyMatchesId && !replyMatchesName) return nextMessage;
+
+        return {
+            ...nextMessage,
+            replyTo: {
+                ...nextMessage.replyTo,
+                author: { ...nextMessage.replyTo.author, avatar: avatarUrl },
+            },
+        };
+    }, [user]);
+
+    const mergeIncomingMessage = useCallback((incoming: ChatMessage) => {
+        const normalizedIncoming = syncAvatar(incoming);
         setMessages((prev) => {
-            const existingIndex = prev.findIndex((message) => message.id === incoming.id);
+            const existingIndex = prev.findIndex((message) => message.id === normalizedIncoming.id);
             if (existingIndex >= 0) return prev;
 
             const pendingIndex = prev.findIndex(
                 (message) =>
                     message.isPending &&
-                    message.roomId === incoming.roomId &&
-                    message.author.id === incoming.author.id &&
-                    message.content === incoming.content,
+                    message.roomId === normalizedIncoming.roomId &&
+                    message.author.id === normalizedIncoming.author.id &&
+                    message.content === normalizedIncoming.content,
             );
 
             if (pendingIndex >= 0) {
                 const pending = prev[pendingIndex];
                 const merged: ChatMessage = {
-                    ...incoming,
+                    ...normalizedIncoming,
                     attachments: pending.attachments,
                     replyTo: pending.replyTo,
                     reactions: pending.reactions,
@@ -118,11 +185,16 @@ const ChatPage = () => {
                 ];
             }
 
-            return [...prev, incoming];
+            return [...prev, normalizedIncoming];
         });
-    };
+    }, [syncAvatar]);
 
     const handleCreateRoom = async () => {
+        if (!token) {
+            setCreateError("Please sign in to create a room.");
+            navigate("/login");
+            return;
+        }
         const trimmed = newRoomName.trim();
         if (!trimmed) {
             setCreateError("Room name is required.");
@@ -150,13 +222,29 @@ const ChatPage = () => {
         }
     };
 
-    const handleSelectRoom = (room: Room) => {
+    const handleSelectRoom = useCallback((room: Room) => {
         setSelectedRoom(room);
         setUnreadCounts((prev) => ({ ...prev, [room.id]: 0 }));
         setReplyTo(null);
         setEditingMessage(null);
         setMessageInput("");
         clearAttachments();
+        setIsMobileRoomsOpen(false);
+    }, [clearAttachments]);
+
+    const handleAvatarChange = async (avatarUrl: string) => {
+        if (!user) return;
+        updateUser({ avatar: avatarUrl });
+        setMessages((prev) => prev.map((message) => applyAvatarOverride(message, avatarUrl)));
+
+        try {
+            const response = await authService.updateAvatar({ avatar: avatarUrl });
+            updateUser(response.data.user);
+            const nextAvatar = response.data.user.avatar ?? avatarUrl;
+            setMessages((prev) => prev.map((message) => applyAvatarOverride(message, nextAvatar)));
+        } catch (error) {
+            console.error("Error updating avatar:", error);
+        }
     };
 
     const handleLeaveRoom = (roomId: string) => {
@@ -225,7 +313,7 @@ const ChatPage = () => {
             author: {
                 id: user?.id,
                 username: user?.username || "You",
-                avatar: user?.avatar,
+                avatar: getUserAvatar(),
             },
             attachments: composerAttachments,
             replyTo: replyTo
@@ -247,7 +335,20 @@ const ChatPage = () => {
 
         setIsSendingMessage(true);
         try {
-            await messageService.sendMessage(selectedRoom.id, contentToSend);
+            const response = await messageService.sendMessage(selectedRoom.id, contentToSend);
+            const confirmedMessage = syncAvatar({
+                ...response.data,
+                attachments: localMessage.attachments,
+                replyTo: localMessage.replyTo,
+                reactions: localMessage.reactions,
+                isPending: false,
+                isFailed: false,
+            });
+            setMessages((prev) =>
+                prev.map((message) =>
+                    message.id === localMessage.id ? confirmedMessage : message,
+                ),
+            );
         } catch (error) {
             console.error("Error sending message:", error);
             setMessages((prev) =>
@@ -268,6 +369,11 @@ const ChatPage = () => {
     };
 
     useEffect(() => {
+        if (!token) {
+            navigate("/login");
+            return;
+        }
+
         const fetchRooms = async () => {
             try {
                 const response = await roomService.getRooms();
@@ -283,7 +389,24 @@ const ChatPage = () => {
         };
 
         fetchRooms();
-    }, []);
+    }, [navigate, token]);
+
+    useEffect(() => {
+        if (!token) return;
+
+        const refreshUserData = async () => {
+            try {
+                const response = await authService.getMe();
+                if (response.data?.user) {
+                    updateUser(response.data.user);
+                }
+            } catch (error) {
+                console.error("Error refreshing user data:", error);
+            }
+        };
+
+        refreshUserData();
+    }, [token, updateUser]);
 
     useEffect(() => {
         if (!selectedRoom) return;
@@ -291,7 +414,11 @@ const ChatPage = () => {
             setIsMessagesLoading(true);
             try {
                 const response = await messageService.getRoomMessages(selectedRoom.id);
-                setMessages(response.data.map((message) => ({ ...message, reactions: [] })));
+                setMessages(
+                    response.data.map((message) =>
+                        syncAvatar({ ...message, reactions: [] }),
+                    ),
+                );
                 setUnreadCounts((prev) => ({ ...prev, [selectedRoom.id]: 0 }));
             } catch (error) {
                 console.error("Error fetching messages:", error);
@@ -300,7 +427,7 @@ const ChatPage = () => {
             }
         };
         fetchMessages();
-    }, [selectedRoom]);
+    }, [selectedRoom, syncAvatar]);
 
     useEffect(() => {
         if (!token) {
@@ -312,6 +439,11 @@ const ChatPage = () => {
 
         newSocket.on("connect", () => {
             console.log("Socket connected:", newSocket.id);
+            setIsConnected(true);
+        });
+
+        newSocket.on("disconnect", () => {
+            setIsConnected(false);
         });
 
         newSocket.on("newMessage", (message: ChatMessage) => {
@@ -326,12 +458,49 @@ const ChatPage = () => {
             mergeIncomingMessage(message);
         });
 
+        const handleTyping = (payload: {
+            roomId?: string;
+            username?: string;
+            user?: { username?: string };
+            isTyping?: boolean;
+        }) => {
+            const username = payload.username || payload.user?.username;
+            if (!username || username === user?.username) return;
+            if (payload.roomId && payload.roomId !== selectedRoomIdRef.current) return;
+            setTypingUsers((prev) => {
+                if (payload.isTyping === false) {
+                    return prev.filter((value) => value !== username);
+                }
+                return prev.includes(username) ? prev : [...prev, username];
+            });
+        };
+
+        const handleTypingStop = (payload: {
+            roomId?: string;
+            username?: string;
+            user?: { username?: string };
+        }) => {
+            const username = payload.username || payload.user?.username;
+            if (!username) return;
+            setTypingUsers((prev) => prev.filter((value) => value !== username));
+        };
+
+        newSocket.on("typing", handleTyping);
+        newSocket.on("userTyping", handleTyping);
+        newSocket.on("typingStart", handleTyping);
+        newSocket.on("typingStop", handleTypingStop);
+
         return () => {
             newSocket.off("newMessage");
+            newSocket.off("typing", handleTyping);
+            newSocket.off("userTyping", handleTyping);
+            newSocket.off("typingStart", handleTyping);
+            newSocket.off("typingStop", handleTypingStop);
             newSocket.disconnect();
+            setIsConnected(false);
             socketRef.current = null;
         };
-    }, [token]);
+    }, [mergeIncomingMessage, token, user?.username]);
 
     useEffect(() => {
         if (!selectedRoom || !socketRef.current) {
@@ -349,31 +518,40 @@ const ChatPage = () => {
         messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
     }, [messages, selectedRoom]);
 
+    const handleComposerChange = (value: string) => {
+        setMessageInput(value);
+        if (!selectedRoom || !socketRef.current || !user?.username) return;
+        socketRef.current.emit("typingStart", {
+            roomId: selectedRoom.id,
+            user: { username: user.username },
+        });
+        if (typingStopTimeoutRef.current) {
+            window.clearTimeout(typingStopTimeoutRef.current);
+        }
+        typingStopTimeoutRef.current = window.setTimeout(() => {
+            socketRef.current?.emit("typingStop", {
+                roomId: selectedRoom.id,
+                user: { username: user.username },
+            });
+        }, 900);
+    };
+
     useEffect(() => {
-        if (!messageInput.trim() || !user?.username) {
-            setTypingUsers([]);
-            return;
-        }
-
-        setTypingUsers([user.username]);
-        if (typingTimeoutRef.current) {
-            window.clearTimeout(typingTimeoutRef.current);
-        }
-        typingTimeoutRef.current = window.setTimeout(() => {
-            setTypingUsers([]);
-        }, 1200);
-
-        return () => {
-            if (typingTimeoutRef.current) {
-                window.clearTimeout(typingTimeoutRef.current);
+        const handleKeyDown = (event: KeyboardEvent) => {
+            if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "k") {
+                event.preventDefault();
+                setIsCommandOpen(true);
             }
         };
-    }, [messageInput, user?.username]);
+        window.addEventListener("keydown", handleKeyDown);
+        return () => window.removeEventListener("keydown", handleKeyDown);
+    }, []);
 
     useEffect(() => {
+        const urls = attachmentUrlsRef.current;
         return () => {
-            attachmentUrlsRef.current.forEach((url) => URL.revokeObjectURL(url));
-            attachmentUrlsRef.current.clear();
+            urls.forEach((url) => URL.revokeObjectURL(url));
+            urls.clear();
         };
     }, []);
 
@@ -409,41 +587,17 @@ const ChatPage = () => {
                             onSelectRoom={handleSelectRoom}
                             onLeaveRoom={handleLeaveRoom}
                             onDeleteRoom={handleDeleteRoom}
+                            onAvatarChange={handleAvatarChange}
                             onLogout={handleLogout}
                         />
                     </div>
 
                     <main className="flex min-h-0 min-w-0 flex-col overflow-hidden border-white/[0.08] bg-[linear-gradient(180deg,rgba(24,24,27,0.72),rgba(9,9,11,0.9)_42%,rgba(9,9,11,0.96))] shadow-2xl shadow-black/35 md:rounded-[1.5rem] md:border xl:rounded-[1.7rem]">
-                        <div className="md:hidden">
-                            <RoomSidebar
-                                rooms={rooms}
-                                selectedRoom={selectedRoom}
-                                roomFilter={roomFilter}
-                                newRoomName={newRoomName}
-                                isLoading={isRoomsLoading}
-                                isCreating={isCreatingRoom}
-                                isCreateOpen={isCreateOpen}
-                                createError={createError}
-                                user={user}
-                                unreadCounts={unreadCounts}
-                                onRoomFilterChange={setRoomFilter}
-                                onNewRoomNameChange={setNewRoomName}
-                                onCreateRoom={handleCreateRoom}
-                                onOpenCreate={() => {
-                                    setCreateError(null);
-                                    setIsCreateOpen(true);
-                                }}
-                                onCloseCreate={() => {
-                                    setCreateError(null);
-                                    setIsCreateOpen(false);
-                                }}
-                                onSelectRoom={handleSelectRoom}
-                                onLeaveRoom={handleLeaveRoom}
-                                onDeleteRoom={handleDeleteRoom}
-                                onLogout={handleLogout}
-                            />
-                        </div>
-                        <ChatHeader room={selectedRoom} />
+                        <ChatHeader
+                            room={selectedRoom}
+                            isConnected={isConnected}
+                            onOpenRooms={() => setIsMobileRoomsOpen(true)}
+                        />
                         <section className="relative min-h-0 flex-1 overflow-y-auto bg-[radial-gradient(circle_at_50%_0%,rgba(103,232,249,0.025),transparent_28%),linear-gradient(180deg,rgba(255,255,255,0.012),transparent_24%)]">
                             <div className="pointer-events-none absolute inset-0 opacity-[0.055] [background-image:linear-gradient(rgba(255,255,255,0.04)_1px,transparent_1px),linear-gradient(90deg,rgba(255,255,255,0.035)_1px,transparent_1px)] [background-size:56px_56px]" />
                             {selectedRoom ? (
@@ -452,6 +606,8 @@ const ChatPage = () => {
                                         messages={messages}
                                         isLoading={isMessagesLoading}
                                         currentUserId={user?.id}
+                                        currentUsername={user?.username}
+                                        currentUserAvatar={getUserAvatar()}
                                         onDelete={(messageId) =>
                                             setMessages((prev) =>
                                                 prev.filter((message) => message.id !== messageId),
@@ -529,7 +685,7 @@ const ChatPage = () => {
                             attachments={composerAttachments}
                             replyTo={replyTo}
                             isEditing={Boolean(editingMessage)}
-                            onChange={setMessageInput}
+                            onChange={handleComposerChange}
                             onSend={handleSendMessage}
                             onAddAttachments={handleAddAttachments}
                             onRemoveAttachment={handleRemoveAttachment}
@@ -541,6 +697,62 @@ const ChatPage = () => {
                         />
                     </main>
                 </div>
+                <AnimatePresence>
+                    {isMobileRoomsOpen && (
+                        <motion.div
+                            className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm md:hidden"
+                            initial={{ opacity: 0 }}
+                            animate={{ opacity: 1 }}
+                            exit={{ opacity: 0 }}
+                            onClick={() => setIsMobileRoomsOpen(false)}
+                        >
+                            <motion.div
+                                className="h-full w-[min(86vw,340px)] p-2"
+                                initial={{ x: "-100%" }}
+                                animate={{ x: 0 }}
+                                exit={{ x: "-100%" }}
+                                transition={{ type: "spring", stiffness: 360, damping: 34 }}
+                                onClick={(event) => event.stopPropagation()}
+                            >
+                                <RoomSidebar
+                                    rooms={rooms}
+                                    selectedRoom={selectedRoom}
+                                    roomFilter={roomFilter}
+                                    newRoomName={newRoomName}
+                                    isLoading={isRoomsLoading}
+                                    isCreating={isCreatingRoom}
+                                    isCreateOpen={isCreateOpen}
+                                    createError={createError}
+                                    user={user}
+                                    unreadCounts={unreadCounts}
+                                    onRoomFilterChange={setRoomFilter}
+                                    onNewRoomNameChange={setNewRoomName}
+                                    onCreateRoom={handleCreateRoom}
+                                    onOpenCreate={() => {
+                                        setCreateError(null);
+                                        setIsCreateOpen(true);
+                                    }}
+                                    onCloseCreate={() => {
+                                        setCreateError(null);
+                                        setIsCreateOpen(false);
+                                    }}
+                                    onSelectRoom={handleSelectRoom}
+                                    onLeaveRoom={handleLeaveRoom}
+                                    onDeleteRoom={handleDeleteRoom}
+                                    onAvatarChange={handleAvatarChange}
+                                    onLogout={handleLogout}
+                                />
+                            </motion.div>
+                        </motion.div>
+                    )}
+                </AnimatePresence>
+                <CommandPalette
+                    isOpen={isCommandOpen}
+                    rooms={rooms}
+                    selectedRoom={selectedRoom}
+                    onClose={() => setIsCommandOpen(false)}
+                    onSelectRoom={handleSelectRoom}
+                />
             </div>
         </PageTransition>
     );

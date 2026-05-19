@@ -4,14 +4,24 @@ import { AuthContext } from "./auth-context";
 
 const getInitialToken = () => localStorage.getItem("token");
 
+const sanitizeStoredUser = (user: User | null) => {
+    if (!user) return null;
+    if (user.avatar?.startsWith("blob:")) {
+        return { ...user, avatar: null };
+    }
+    return user;
+};
+
 const getInitialUser = () => {
     try {
         const storedUser =
             localStorage.getItem("user");
 
-        return storedUser
-            ? JSON.parse(storedUser)
-            : null;
+        return sanitizeStoredUser(
+            storedUser
+                ? JSON.parse(storedUser)
+                : null,
+        );
 
     } catch {
         return null;
@@ -36,6 +46,15 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
         setToken(token);
     };
 
+    const updateUser = (updates: Partial<User>) => {
+        setUser((prev) => {
+            const next = { ...(prev ?? {}), ...updates } as User;
+            const stored = sanitizeStoredUser(next);
+            localStorage.setItem("user", JSON.stringify(stored));
+            return next;
+        });
+    };
+
     const logout = () => {
         localStorage.removeItem("user");
         localStorage.removeItem("token");
@@ -44,7 +63,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     };
 
     return (
-        <AuthContext.Provider value={{ user, token, login, logout }}>
+        <AuthContext.Provider value={{ user, token, login, logout, updateUser }}>
             {children}
         </AuthContext.Provider>
     );

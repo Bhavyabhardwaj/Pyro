@@ -6,6 +6,7 @@ export interface AuthContextType {
     token: string | null;
     login: (user: User, token: string) => void;
     logout: () => void;
+    updateUser: (updates: Partial<User>) => void;
 }
 
 export const AuthContext = createContext<AuthContextType | null>(null);

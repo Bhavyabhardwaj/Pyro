@@ -3,34 +3,21 @@ import {
   CornerUpLeft,
   FileText,
   ImagePlus,
+  Loader2,
   Paperclip,
   SendHorizontal,
   SmilePlus,
   X,
 } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
+import EmojiPicker, {
+  EmojiStyle,
+  Theme,
+  type EmojiClickData,
+} from "emoji-picker-react";
 import { cn } from "../../lib/utils";
 import type { AttachmentItem } from "../../types/chat";
 import { Textarea } from "../ui/textarea";
-
-const emojiList = [
-  "44b",
-  "604",
-  "60e",
-  "525",
-  "60d",
-  "64c",
-  "389",
-  "602",
-  "44d",
-  "972",
-  "60a",
-  "680",
-  "9e1",
-  "44f",
-  "60c",
-  "31f",
-];
 
 function formatFileSize(bytes: number) {
   if (!Number.isFinite(bytes)) return "";
@@ -78,8 +65,10 @@ export function MessageComposer({
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const imageInputRef = useRef<HTMLInputElement | null>(null);
   const textareaRef = useRef<HTMLTextAreaElement | null>(null);
+  const emojiPickerRef = useRef<HTMLDivElement | null>(null);
   const [isEmojiOpen, setIsEmojiOpen] = useState(false);
   const [isDragging, setIsDragging] = useState(false);
+  const [emojiPulse, setEmojiPulse] = useState(false);
 
   useEffect(() => {
     if (!textareaRef.current) return;
@@ -90,11 +79,39 @@ export function MessageComposer({
     )}px`;
   }, [value]);
 
+  useEffect(() => {
+    if (!isEmojiOpen) return;
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        setIsEmojiOpen(false);
+      }
+    };
+    const handlePointerDown = (event: PointerEvent) => {
+      if (!emojiPickerRef.current) return;
+      if (!emojiPickerRef.current.contains(event.target as Node)) {
+        setIsEmojiOpen(false);
+      }
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    window.addEventListener("pointerdown", handlePointerDown);
+    return () => {
+      window.removeEventListener("keydown", handleKeyDown);
+      window.removeEventListener("pointerdown", handlePointerDown);
+    };
+  }, [isEmojiOpen]);
+
+  const handleEmojiClick = (emojiData: EmojiClickData) => {
+    onChange(`${value}${emojiData.emoji}`);
+    setIsEmojiOpen(false);
+    setEmojiPulse(true);
+    window.setTimeout(() => setEmojiPulse(false), 250);
+  };
+
   const isSendDisabled =
     disabled || isSending || (!value.trim() && attachments.length === 0);
 
   return (
-    <div className="border-t border-white/8 bg-zinc-950/92 p-3 backdrop-blur-xl sm:p-5">
+    <div className="border-t border-white/8 bg-zinc-950/95 p-2.5 backdrop-blur-xl sm:p-3">
       <div
         className="relative mx-auto max-w-4xl"
         onDragEnter={(event) => {
@@ -139,35 +156,49 @@ export function MessageComposer({
           )}
         </AnimatePresence>
 
-        <div className="rounded-[1.8rem] border border-white/9 bg-[linear-gradient(180deg,rgba(255,255,255,0.08),rgba(255,255,255,0.035))] p-3 shadow-[0_24px_70px_rgba(0,0,0,0.34)] transition-all focus-within:border-cyan-200/30 focus-within:shadow-[0_24px_80px_rgba(8,145,178,0.18)]">
-          <div className="flex flex-wrap items-center gap-2">
-            <button
+        <div
+          className={cn(
+            "rounded-[1.25rem] border border-white/8 bg-[linear-gradient(180deg,rgba(255,255,255,0.06),rgba(255,255,255,0.02))] p-1.5 shadow-[0_16px_36px_rgba(0,0,0,0.28)] transition-all duration-200 focus-within:border-cyan-200/20 focus-within:bg-[linear-gradient(180deg,rgba(255,255,255,0.085),rgba(255,255,255,0.03))] focus-within:shadow-[0_18px_45px_rgba(8,145,178,0.15)]",
+            emojiPulse && "shadow-[0_0_0_1.5px_rgba(34,211,238,0.1)]",
+          )}
+        >
+          <div className="flex flex-wrap items-center gap-1">
+            <motion.button
               type="button"
               onClick={() => setIsEmojiOpen((prev) => !prev)}
               disabled={disabled}
-              className="flex h-10 w-10 items-center justify-center rounded-2xl text-zinc-500 transition-all hover:bg-white/6 hover:text-zinc-200"
+              whileHover={{ scale: 1.08 }}
+              whileTap={{ scale: 0.94 }}
+              className={cn(
+                "flex h-8 w-8 items-center justify-center rounded-lg text-zinc-500 transition-all duration-150 hover:bg-white/8 hover:text-zinc-200",
+                isEmojiOpen && "bg-white/10 text-cyan-100",
+              )}
               aria-label="Open emoji picker"
             >
-              <SmilePlus className="h-4 w-4" />
-            </button>
-            <button
+              <SmilePlus className="h-3.5 w-3.5" />
+            </motion.button>
+            <motion.button
               type="button"
               onClick={() => imageInputRef.current?.click()}
               disabled={disabled}
-              className="flex h-10 w-10 items-center justify-center rounded-2xl text-zinc-500 transition-all hover:bg-white/6 hover:text-zinc-200"
+              whileHover={{ scale: 1.08 }}
+              whileTap={{ scale: 0.94 }}
+              className="flex h-8 w-8 items-center justify-center rounded-lg text-zinc-500 transition-all duration-150 hover:bg-white/8 hover:text-zinc-200"
               aria-label="Upload image"
             >
-              <ImagePlus className="h-4 w-4" />
-            </button>
-            <button
+              <ImagePlus className="h-3.5 w-3.5" />
+            </motion.button>
+            <motion.button
               type="button"
               onClick={() => fileInputRef.current?.click()}
               disabled={disabled}
-              className="flex h-10 w-10 items-center justify-center rounded-2xl text-zinc-500 transition-all hover:bg-white/6 hover:text-zinc-200"
+              whileHover={{ scale: 1.08 }}
+              whileTap={{ scale: 0.94 }}
+              className="flex h-8 w-8 items-center justify-center rounded-lg text-zinc-500 transition-all duration-150 hover:bg-white/8 hover:text-zinc-200"
               aria-label="Attach file"
             >
-              <Paperclip className="h-4 w-4" />
-            </button>
+              <Paperclip className="h-3.5 w-3.5" />
+            </motion.button>
             <div className="flex-1">
               <Textarea
                 ref={textareaRef}
@@ -195,46 +226,48 @@ export function MessageComposer({
                 placeholder={
                   disabled ? "Select a room to message" : "Write a message..."
                 }
-                className="max-h-44 border-transparent bg-transparent px-1 py-2 text-[0.95rem] leading-relaxed focus:border-transparent focus:ring-0"
+                className="max-h-28 border-transparent bg-transparent px-1 py-1.5 text-[0.94rem] leading-[1.4] placeholder:text-zinc-700 placeholder:transition-colors transition-colors duration-150 focus:border-transparent focus:ring-0 focus:placeholder:text-zinc-600"
               />
             </div>
             <motion.button
               type="button"
-              whileTap={{ scale: 0.95 }}
-              whileHover={{ scale: 1.02 }}
+              whileTap={{ scale: 0.90 }}
+              whileHover={{ scale: 1.05 }}
               onClick={onSend}
               disabled={isSendDisabled}
               aria-label="Send message"
               className={cn(
-                "flex h-11 w-11 items-center justify-center rounded-2xl text-white transition-all",
+                "flex h-8 w-8 items-center justify-center rounded-lg text-white transition-all duration-150",
                 isSendDisabled
-                  ? "bg-white/10 text-zinc-500"
-                  : "bg-[linear-gradient(135deg,#22d3ee,#a855f7)] shadow-[0_16px_40px_rgba(56,189,248,0.28)]",
+                  ? "bg-white/8 text-zinc-600 cursor-not-allowed"
+                  : "bg-[linear-gradient(135deg,#22d3ee,#a855f7)] shadow-[0_12px_28px_rgba(56,189,248,0.24)] hover:shadow-[0_16px_36px_rgba(56,189,248,0.32)]",
               )}
             >
-              <SendHorizontal className="h-4 w-4" />
+              {isSending ? (
+                <Loader2 className="h-3.5 w-3.5 animate-spin" />
+              ) : (
+                <SendHorizontal className="h-3.5 w-3.5" />
+              )}
             </motion.button>
           </div>
 
           <AnimatePresence>
             {isEmojiOpen && !disabled && (
               <motion.div
+                ref={emojiPickerRef}
                 initial={{ opacity: 0, y: 8 }}
                 animate={{ opacity: 1, y: 0 }}
                 exit={{ opacity: 0, y: 8 }}
-                className="mt-3 grid grid-cols-8 gap-2 rounded-2xl border border-white/10 bg-zinc-950/90 p-3 text-xl shadow-2xl shadow-black/40"
+                className="mt-2.5 overflow-hidden rounded-xl border border-white/10 bg-zinc-950/90 p-1.5 shadow-2xl shadow-black/40"
               >
-                {emojiList.map((emoji) => (
-                  <button
-                    key={emoji}
-                    type="button"
-                    onClick={() => onChange(`${value}${emoji}`)}
-                    className="flex h-9 w-9 items-center justify-center rounded-xl transition hover:bg-white/10"
-                    aria-label={`Insert ${emoji}`}
-                  >
-                    {emoji}
-                  </button>
-                ))}
+                <EmojiPicker
+                  theme={Theme.DARK}
+                  onEmojiClick={handleEmojiClick}
+                  emojiStyle={EmojiStyle.NATIVE}
+                  width="100%"
+                  height={320}
+                  autoFocusSearch
+                />
               </motion.div>
             )}
           </AnimatePresence>
@@ -245,17 +278,23 @@ export function MessageComposer({
                 initial={{ opacity: 0, y: -6 }}
                 animate={{ opacity: 1, y: 0 }}
                 exit={{ opacity: 0, y: -6 }}
-                className="mt-3 flex items-center justify-between rounded-2xl border border-white/10 bg-white/4 px-3 py-2 text-xs text-zinc-400"
+                className={cn(
+                  "mt-2.5 flex items-center justify-between rounded-xl border border-white/8 bg-white/3 px-2.5 py-2 text-xs transition hover:bg-white/5",
+                  isEditing ? "border-cyan-200/20 text-cyan-100" : "text-zinc-400",
+                )}
               >
                 <div className="flex min-w-0 items-center gap-2">
-                  <CornerUpLeft className="h-3.5 w-3.5" />
+                  <span className="self-stretch w-0.5 rounded-full bg-cyan-200/40" />
+                  <CornerUpLeft className="h-3 w-3 flex-shrink-0" />
                   {isEditing ? (
-                    <span className="truncate">
-                      Editing message
-                    </span>
+                    <span className="truncate text-[11px]">Editing message</span>
                   ) : (
-                    <span className="truncate">
-                      Replying to {replyTo?.author.username}: {replyTo?.content}
+                    <span className="truncate text-[11px]">
+                      <span className="font-semibold text-white">
+                        {replyTo?.author.username}
+                      </span>
+                      <span className="text-zinc-600"> :</span>
+                      <span className="ml-1 text-zinc-500">{replyTo?.content}</span>
                     </span>
                   )}
                 </div>
@@ -272,50 +311,52 @@ export function MessageComposer({
           </AnimatePresence>
 
           {attachments.length > 0 && (
-            <div className="mt-3 grid gap-2 sm:grid-cols-2">
+            <div className="mt-2.5 grid gap-2 sm:grid-cols-2">
               {attachments.map((attachment) => (
                 <div
                   key={attachment.id}
-                  className="group relative overflow-hidden rounded-2xl border border-white/10 bg-white/4"
+                  className="group relative overflow-hidden rounded-xl border border-white/10 bg-white/3 transition-all duration-150 hover:border-white/15"
                 >
                   {attachment.kind === "image" ? (
                     <img
                       src={attachment.url}
                       alt={attachment.name}
-                      className="h-32 w-full object-cover"
+                      className="h-28 w-full object-cover"
                     />
                   ) : (
-                    <div className="flex items-center gap-3 px-4 py-3">
-                      <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-white/10">
-                        <FileText className="h-4 w-4 text-zinc-300" />
+                    <div className="flex items-center gap-2 px-3 py-2.5">
+                      <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-white/8">
+                        <FileText className="h-3.5 w-3.5 text-zinc-400" />
                       </div>
-                      <div className="min-w-0">
-                        <p className="truncate text-sm text-white">
+                      <div className="min-w-0 flex-1">
+                        <p className="truncate text-xs text-white">
                           {attachment.name}
                         </p>
-                        <p className="text-xs text-zinc-500">
+                        <p className="text-[10px] text-zinc-600">
                           {formatFileSize(attachment.size)}
                         </p>
                       </div>
                     </div>
                   )}
-                  <button
+                  <motion.button
                     type="button"
+                    whileHover={{ scale: 1.1 }}
+                    whileTap={{ scale: 0.9 }}
                     onClick={() => onRemoveAttachment(attachment.id)}
-                    className="absolute right-2 top-2 flex h-7 w-7 items-center justify-center rounded-full bg-zinc-950/70 text-zinc-300 opacity-0 transition group-hover:opacity-100"
+                    className="absolute right-1.5 top-1.5 flex h-6 w-6 items-center justify-center rounded-full bg-zinc-950/70 text-zinc-400 opacity-0 transition group-hover:opacity-100"
                     aria-label="Remove attachment"
                   >
-                    <X className="h-3.5 w-3.5" />
-                  </button>
+                    <X className="h-3 w-3" />
+                  </motion.button>
                 </div>
               ))}
             </div>
           )}
 
-          <div className="mt-3 flex flex-wrap items-center gap-3 text-[11px] text-zinc-500">
-            <span>Enter to send - Shift+Enter for new line</span>
-            <span className="text-zinc-700">Ctrl+E emoji</span>
-            <span className="text-zinc-700">Ctrl+U upload</span>
+          <div className="mt-2 flex flex-wrap items-center gap-2 text-[10px] text-zinc-700">
+            <span>Enter to send</span>
+            <span className="text-zinc-800">•</span>
+            <span>Shift+Enter for new line</span>
           </div>
         </div>
       </div>
