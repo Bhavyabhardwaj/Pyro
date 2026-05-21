@@ -1,4 +1,5 @@
 import { Server } from "socket.io";
+import { presenceService } from "./presence";
 import { AuthenticatedSocket } from "./types";
 
 import type { Server as HTTPServer } from "http";
@@ -34,6 +35,13 @@ export const initializeSocket = (server: HTTPServer) => {
     io.on("connection", (socket: AuthenticatedSocket) => {
         console.log(`User connected: ${socket.id}`);
 
+        const userId = socket.user?.userId;
+
+        presenceService.addUser(userId!, socket.id);
+        socket.emit("online users", presenceService.getOnlineUsers());
+        io.emit("userOnline", userId);
+        console.log(`User ${userId} is online`);
+
         socket.on("joinRoom", (roomId: string) => {
             socket.join(roomId);
             console.log(`User ${socket.id} joined room ${roomId}`);
@@ -45,6 +53,11 @@ export const initializeSocket = (server: HTTPServer) => {
         });
 
         socket.on("disconnect", () => {
+            const disconnectedUserId = presenceService.removeUser(socket.id);
+            if (disconnectedUserId) {
+                io.emit("userOffline", disconnectedUserId);
+                console.log(`User ${disconnectedUserId} is offline`);
+            }
             console.log(`User disconnected: ${socket.id}`);
         });
     });
