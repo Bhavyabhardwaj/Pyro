@@ -76,12 +76,14 @@ export function MessageList({
   onReply,
   onToggleReaction,
   typingUsers,
+  onlineUsers = new Set(),
 }: {
   messages: ChatMessage[];
   isLoading: boolean;
   currentUserId?: string;
   currentUsername?: string;
   currentUserAvatar?: string;
+  onlineUsers?: Set<string>;
   onDelete: (messageId: string) => void;
   onEdit: (message: ChatMessage) => void;
   onReply: (message: ChatMessage) => void;
@@ -231,8 +233,8 @@ export function MessageList({
                 <Avatar
                   name={message.author.username}
                   src={isCurrentUser ? currentUserAvatar ?? message.author.avatar : message.author.avatar}
-                  className="mt-0.5"
-                />
+                  className="mt-0.5"                  showStatus={true}
+                  isOnline={isCurrentUser ? true : (message.author.id ? onlineUsers.has(message.author.id) : false)}                />
               )}
             </div>
             <div className="min-w-0">

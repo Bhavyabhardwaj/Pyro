@@ -38,7 +38,7 @@ export const initializeSocket = (server: HTTPServer) => {
         const userId = socket.user?.userId;
 
         presenceService.addUser(userId!, socket.id);
-        socket.emit("online users", presenceService.getOnlineUsers());
+        io.emit("onlineUsers", presenceService.getOnlineUsers());
         io.emit("userOnline", userId);
         console.log(`User ${userId} is online`);
 
@@ -56,6 +56,8 @@ export const initializeSocket = (server: HTTPServer) => {
             const disconnectedUserId = presenceService.removeUser(socket.id);
             if (disconnectedUserId) {
                 io.emit("userOffline", disconnectedUserId);
+                // also broadcast updated full list
+                io.emit("onlineUsers", presenceService.getOnlineUsers());
                 console.log(`User ${disconnectedUserId} is offline`);
             }
             console.log(`User disconnected: ${socket.id}`);

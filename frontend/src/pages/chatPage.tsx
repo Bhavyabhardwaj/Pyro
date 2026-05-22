@@ -5,7 +5,7 @@ import { roomService } from "../services/room.service";
 import { messageService } from "../services/message.service";
 import { authService } from "../services/auth.service";
 import { Socket } from "socket.io-client";
-import { createSocket } from "../lib/socket";
+import { connectSocket, releaseSocket } from "../lib/socket";
 import { useAuth } from "../hooks/useAuth";
 import type { Room, RoomMember } from "../types/api";
 import type { AttachmentItem, ChatMessage } from "../types/chat";
@@ -17,6 +17,14 @@ import { MessageComposer } from "../components/chat/MessageComposer";
 import { CommandPalette } from "../components/chat/CommandPalette";
 
 const ChatPage = () => {
+    const mountRef = useRef(0);
+    useEffect(() => {
+        mountRef.current += 1;
+        console.log(`ChatPage mount #${mountRef.current}`);
+        return () => {
+            console.log(`ChatPage unmount #${mountRef.current}`);
+        };
+    }, []);
     const [rooms, setRooms] = useState<RoomMember[]>([]);
     const [roomFilter, setRoomFilter] = useState("");
     const [newRoomName, setNewRoomName] = useState("");
@@ -33,13 +41,17 @@ const ChatPage = () => {
     const [unreadCounts, setUnreadCounts] = useState<Record<string, number>>({});
     const [isRoomsLoading, setIsRoomsLoading] = useState(true);
     const [isMessagesLoading, setIsMessagesLoading] = useState(false);
+    const [roomsError, setRoomsError] = useState<string | null>(null);
+    const [messagesError, setMessagesError] = useState<string | null>(null);
     const [isCreatingRoom, setIsCreatingRoom] = useState(false);
     const [isCreateOpen, setIsCreateOpen] = useState(false);
     const [createError, setCreateError] = useState<string | null>(null);
     const [isSendingMessage, setIsSendingMessage] = useState(false);
+    const [onlineUsers, setOnlineUsers] = useState<Set<string>>(new Set());
     const socketRef = useRef<Socket | null>(null);
     const messagesEndRef = useRef<HTMLDivElement | null>(null);
     const selectedRoomIdRef = useRef<string | null>(null);
+    const lastMessagesFetchRef = useRef<number | null>(null);
     const typingStopTimeoutRef = useRef<number | null>(null);
     const attachmentUrlsRef = useRef<Set<string>>(new Set());
 
@@ -62,6 +74,28 @@ const ChatPage = () => {
             return undefined;
         }
     }, [user]);
+
+    const areSetsEqual = (a: Set<string>, b: Set<string>) => {
+        if (a.size !== b.size) return false;
+        for (const v of a) if (!b.has(v)) return false;
+        return true;
+    };
+
+    const areRoomListsEqual = (a: RoomMember[], b: RoomMember[]) => {
+        if (a.length !== b.length) return false;
+        for (let i = 0; i < a.length; i++) {
+            if (a[i].room.id !== b[i].room.id) return false;
+        }
+        return true;
+    };
+
+    const areMessageListsEqual = (a: ChatMessage[], b: ChatMessage[]) => {
+        if (a.length !== b.length) return false;
+        for (let i = 0; i < a.length; i++) {
+            if (a[i].id !== b[i].id) return false;
+        }
+        return true;
+    };
 
     const clearAttachments = useCallback(() => {
         setComposerAttachments((prev) => {
@@ -155,6 +189,7 @@ const ChatPage = () => {
     }, [user]);
 
     const mergeIncomingMessage = useCallback((incoming: ChatMessage) => {
+        console.debug("mergeIncomingMessage called for", incoming.id);
         const normalizedIncoming = syncAvatar(incoming);
         setMessages((prev) => {
             const existingIndex = prev.findIndex((message) => message.id === normalizedIncoming.id);
@@ -188,6 +223,46 @@ const ChatPage = () => {
             return [...prev, normalizedIncoming];
         });
     }, [syncAvatar]);
+
+    const mergeIncomingMessageRef = useRef(mergeIncomingMessage);
+    useEffect(() => {
+        mergeIncomingMessageRef.current = mergeIncomingMessage;
+    }, [mergeIncomingMessage]);
+
+    // Buffer incoming messages to avoid many rapid state updates
+    const incomingMessagesBufferRef = useRef<ChatMessage[]>([]);
+    const incomingMessagesTimerRef = useRef<number | null>(null);
+    const scheduleFlushIncoming = () => {
+        if (incomingMessagesTimerRef.current) return;
+        incomingMessagesTimerRef.current = window.setTimeout(() => {
+            const toFlush = incomingMessagesBufferRef.current.splice(0);
+            incomingMessagesTimerRef.current = null;
+            if (!toFlush.length) return;
+            toFlush.forEach((msg) => mergeIncomingMessageRef.current(msg));
+        }, 50);
+    };
+
+    // Buffer presence updates for a short time to debounce noisy events
+    const presenceBufferRef = useRef<Set<string> | null>(null);
+    const presenceTimerRef = useRef<number | null>(null);
+    const scheduleFlushPresence = () => {
+        if (presenceTimerRef.current) return;
+        presenceTimerRef.current = window.setTimeout(() => {
+            presenceTimerRef.current = null;
+            if (!presenceBufferRef.current) return;
+            const incoming = presenceBufferRef.current;
+            presenceBufferRef.current = null;
+            setOnlineUsers((prev) => {
+                if (areSetsEqual(prev, incoming)) return prev;
+                return incoming;
+            });
+        }, 200);
+    };
+
+    const userRef = useRef(user);
+    useEffect(() => {
+        userRef.current = user;
+    }, [user]);
 
     const handleCreateRoom = async () => {
         if (!token) {
@@ -377,12 +452,20 @@ const ChatPage = () => {
         const fetchRooms = async () => {
             try {
                 const response = await roomService.getRooms();
-                setRooms(response.data);
-                if (response.data.length > 0) {
+                console.debug("fetched rooms count:", response.data.length, "payload:", response.data);
+                setRooms((prev) => {
+                    if (areRoomListsEqual(prev, response.data)) return prev;
+                    return response.data;
+                });
+                if (response.data.length > 0 && selectedRoom?.id !== response.data[0].room.id) {
                     setSelectedRoom(response.data[0].room);
                 }
+                setRoomsError(null);
             } catch (error) {
                 console.error("Error fetching rooms:", error);
+                const status = (error as any)?.response?.status;
+                const data = (error as any)?.response?.data;
+                setRoomsError(`Failed to load rooms: ${status ?? "unknown"} ${data?.message ?? ""}`);
             } finally {
                 setIsRoomsLoading(false);
             }
@@ -411,17 +494,30 @@ const ChatPage = () => {
     useEffect(() => {
         if (!selectedRoom) return;
         const fetchMessages = async () => {
+            console.debug("fetchMessages invoked for room", selectedRoom.id);
+            // throttle repeated calls
+            const now = Date.now();
+            if ((lastMessagesFetchRef.current ?? 0) + 800 > now) {
+                console.debug("fetchMessages throttled for room", selectedRoom.id);
+                return;
+            }
+            lastMessagesFetchRef.current = now;
             setIsMessagesLoading(true);
             try {
                 const response = await messageService.getRoomMessages(selectedRoom.id);
-                setMessages(
-                    response.data.map((message) =>
-                        syncAvatar({ ...message, reactions: [] }),
-                    ),
-                );
+                console.debug("fetched messages count:", response.data.length, "payload:", response.data);
+                setMessages((prev) => {
+                    const mapped = response.data.map((message) => syncAvatar({ ...message, reactions: [] }));
+                    if (areMessageListsEqual(prev, mapped)) return prev;
+                    return mapped;
+                });
                 setUnreadCounts((prev) => ({ ...prev, [selectedRoom.id]: 0 }));
+                setMessagesError(null);
             } catch (error) {
                 console.error("Error fetching messages:", error);
+                const status = (error as any)?.response?.status;
+                const data = (error as any)?.response?.data;
+                setMessagesError(`Failed to load messages: ${status ?? "unknown"} ${data?.message ?? ""}`);
             } finally {
                 setIsMessagesLoading(false);
             }
@@ -434,7 +530,13 @@ const ChatPage = () => {
             return;
         }
 
-        const newSocket = createSocket(token);
+        if (socketRef.current) {
+            console.log("Socket already initialized, skipping");
+            return;
+        }
+
+        console.log("Initializing socket");
+        const newSocket = connectSocket(token);
         socketRef.current = newSocket;
 
         newSocket.on("connect", () => {
@@ -444,6 +546,31 @@ const ChatPage = () => {
 
         newSocket.on("disconnect", () => {
             setIsConnected(false);
+            setOnlineUsers(new Set());
+        });
+
+        newSocket.on("onlineUsers", (userIds: string[]) => {
+            const incoming = new Set(userIds);
+            presenceBufferRef.current = incoming;
+            scheduleFlushPresence();
+        });
+
+        newSocket.on("userOnline", (userId: string) => {
+            setOnlineUsers((prev) => {
+                if (prev.has(userId)) return prev;
+                const next = new Set(prev);
+                next.add(userId);
+                return next;
+            });
+        });
+
+        newSocket.on("userOffline", (userId: string) => {
+            setOnlineUsers((prev) => {
+                if (!prev.has(userId)) return prev;
+                const next = new Set(prev);
+                next.delete(userId);
+                return next;
+            });
         });
 
         newSocket.on("newMessage", (message: ChatMessage) => {
@@ -455,7 +582,8 @@ const ChatPage = () => {
                 }));
                 return;
             }
-            mergeIncomingMessage(message);
+            incomingMessagesBufferRef.current.push(message);
+            scheduleFlushIncoming();
         });
 
         const handleTyping = (payload: {
@@ -465,7 +593,7 @@ const ChatPage = () => {
             isTyping?: boolean;
         }) => {
             const username = payload.username || payload.user?.username;
-            if (!username || username === user?.username) return;
+            if (!username || username === userRef.current?.username) return;
             if (payload.roomId && payload.roomId !== selectedRoomIdRef.current) return;
             setTypingUsers((prev) => {
                 if (payload.isTyping === false) {
@@ -491,16 +619,20 @@ const ChatPage = () => {
         newSocket.on("typingStop", handleTypingStop);
 
         return () => {
+            console.log("Cleaning up socket");
             newSocket.off("newMessage");
+            newSocket.off("onlineUsers");
+            newSocket.off("userOnline");
+            newSocket.off("userOffline");
             newSocket.off("typing", handleTyping);
             newSocket.off("userTyping", handleTyping);
             newSocket.off("typingStart", handleTyping);
             newSocket.off("typingStop", handleTypingStop);
-            newSocket.disconnect();
+            releaseSocket();
             setIsConnected(false);
             socketRef.current = null;
         };
-    }, [mergeIncomingMessage, token, user?.username]);
+    }, [token]);
 
     useEffect(() => {
         if (!selectedRoom || !socketRef.current) {
@@ -517,6 +649,22 @@ const ChatPage = () => {
     useEffect(() => {
         messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
     }, [messages, selectedRoom]);
+
+    useEffect(() => {
+        console.debug("messages changed, count:", messages.length);
+    }, [messages.length]);
+
+    useEffect(() => {
+        console.debug("rooms changed, count:", rooms.length);
+    }, [rooms.length]);
+
+    useEffect(() => {
+        console.debug("selectedRoom changed:", selectedRoom?.id ?? null);
+    }, [selectedRoom?.id]);
+
+    useEffect(() => {
+        console.debug("onlineUsers changed, count:", onlineUsers.size);
+    }, [onlineUsers]);
 
     const handleComposerChange = (value: string) => {
         setMessageInput(value);
@@ -559,9 +707,12 @@ const ChatPage = () => {
         <PageTransition>
             <div className="relative h-screen overflow-hidden bg-zinc-950 text-zinc-100">
                 <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_18%_12%,rgba(103,232,249,0.045),transparent_28%),radial-gradient(circle_at_82%_0%,rgba(168,85,247,0.04),transparent_24%),linear-gradient(180deg,rgba(255,255,255,0.035),transparent_26%)]" />
-                <div className="pointer-events-none absolute inset-x-10 top-8 h-px bg-gradient-to-r from-transparent via-white/10 to-transparent" />
+                <div className="pointer-events-none absolute inset-x-10 top-8 h-px bg-linear-to-r from-transparent via-white/10 to-transparent" />
                 <div className="relative grid h-full grid-cols-1 gap-0 p-0 md:grid-cols-[280px_minmax(0,1fr)] md:gap-3 md:p-3 xl:grid-cols-[304px_minmax(0,1fr)]">
                     <div className="hidden min-h-0 md:block">
+                            {roomsError && (
+                                <div className="mb-2 p-2 text-sm text-red-300">{roomsError}</div>
+                            )}
                         <RoomSidebar
                             rooms={rooms}
                             selectedRoom={selectedRoom}
@@ -573,6 +724,7 @@ const ChatPage = () => {
                             createError={createError}
                             user={user}
                             unreadCounts={unreadCounts}
+                            onlineUsersCount={onlineUsers.size}
                             onRoomFilterChange={setRoomFilter}
                             onNewRoomNameChange={setNewRoomName}
                             onCreateRoom={handleCreateRoom}
@@ -592,22 +744,28 @@ const ChatPage = () => {
                         />
                     </div>
 
-                    <main className="flex min-h-0 min-w-0 flex-col overflow-hidden border-white/[0.08] bg-[linear-gradient(180deg,rgba(24,24,27,0.72),rgba(9,9,11,0.9)_42%,rgba(9,9,11,0.96))] shadow-2xl shadow-black/35 md:rounded-[1.5rem] md:border xl:rounded-[1.7rem]">
+                    <main className="flex min-h-0 min-w-0 flex-col overflow-hidden border-white/8 bg-[linear-gradient(180deg,rgba(24,24,27,0.72),rgba(9,9,11,0.9)_42%,rgba(9,9,11,0.96))] shadow-2xl shadow-black/35 md:rounded-3xl md:border xl:rounded-[1.7rem]">
                         <ChatHeader
                             room={selectedRoom}
                             isConnected={isConnected}
                             onOpenRooms={() => setIsMobileRoomsOpen(true)}
                         />
                         <section className="relative min-h-0 flex-1 overflow-y-auto bg-[radial-gradient(circle_at_50%_0%,rgba(103,232,249,0.025),transparent_28%),linear-gradient(180deg,rgba(255,255,255,0.012),transparent_24%)]">
-                            <div className="pointer-events-none absolute inset-0 opacity-[0.055] [background-image:linear-gradient(rgba(255,255,255,0.04)_1px,transparent_1px),linear-gradient(90deg,rgba(255,255,255,0.035)_1px,transparent_1px)] [background-size:56px_56px]" />
+                            <div className="pointer-events-none absolute inset-0 opacity-[0.055] bg-[linear-gradient(rgba(255,255,255,0.04)_1px,transparent_1px),linear-gradient(90deg,rgba(255,255,255,0.035)_1px,transparent_1px)] bg-size-[56px_56px]" />
                             {selectedRoom ? (
                                 <>
+                                        {messagesError && (
+                                            <div className="p-3 text-sm text-red-300">
+                                                {messagesError}
+                                            </div>
+                                        )}
                                     <MessageList
                                         messages={messages}
                                         isLoading={isMessagesLoading}
                                         currentUserId={user?.id}
                                         currentUsername={user?.username}
                                         currentUserAvatar={getUserAvatar()}
+                                        onlineUsers={onlineUsers}
                                         onDelete={(messageId) =>
                                             setMessages((prev) =>
                                                 prev.filter((message) => message.id !== messageId),
@@ -725,6 +883,7 @@ const ChatPage = () => {
                                     createError={createError}
                                     user={user}
                                     unreadCounts={unreadCounts}
+                                    onlineUsersCount={onlineUsers.size}
                                     onRoomFilterChange={setRoomFilter}
                                     onNewRoomNameChange={setNewRoomName}
                                     onCreateRoom={handleCreateRoom}

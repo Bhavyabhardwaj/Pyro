@@ -29,6 +29,7 @@ export function RoomSidebar({
   createError,
   user,
   unreadCounts,
+  onlineUsersCount = 0,
   onRoomFilterChange,
   onNewRoomNameChange,
   onCreateRoom,
@@ -50,6 +51,7 @@ export function RoomSidebar({
   createError?: string | null;
   user: User | null;
   unreadCounts: Record<string, number>;
+  onlineUsersCount?: number;
   onRoomFilterChange: (value: string) => void;
   onNewRoomNameChange: (value: string) => void;
   onCreateRoom: () => void;
@@ -102,11 +104,34 @@ export function RoomSidebar({
       <div className="pointer-events-none absolute inset-x-6 top-24 h-px bg-linear-to-r from-transparent via-white/10 to-transparent" />
 
       <div className="relative border-b border-white/8 p-3">
-        <div className="flex items-center gap-2.5">
-          <PyroMark />
-          <div className="min-w-0">
-            <p className="text-xs font-semibold text-white">Pyro</p>
-            <p className="truncate text-[10px] text-zinc-600">Workspace</p>
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2.5">
+            <PyroMark />
+            <div className="min-w-0">
+              <p className="text-xs font-semibold text-white">Pyro</p>
+              <div className="flex items-center gap-1.5 mt-0.5">
+                <span className="truncate text-[10px] text-zinc-500">Workspace</span>
+                <span className="text-[10px] text-zinc-700">•</span>
+                <div className="flex items-center gap-1.5" title={`${onlineUsersCount} user${onlineUsersCount === 1 ? '' : 's'} online`}>
+                  <span className="relative flex h-1.5 w-1.5">
+                    <AnimatePresence>
+                      {onlineUsersCount > 0 && (
+                        <motion.span
+                          initial={{ scale: 0.5, opacity: 0 }}
+                          animate={{ scale: 1, opacity: 1 }}
+                          exit={{ scale: 0.5, opacity: 0 }}
+                          className="absolute inline-flex h-full w-full rounded-full bg-[#23a559]"
+                        />
+                      )}
+                    </AnimatePresence>
+                    {onlineUsersCount === 0 && <span className="absolute inline-flex h-full w-full rounded-full bg-zinc-600" />}
+                  </span>
+                  <span className="text-[10px] font-medium text-zinc-400">
+                    {onlineUsersCount} online
+                  </span>
+                </div>
+              </div>
+            </div>
           </div>
         </div>
       </div>
@@ -164,8 +189,10 @@ export function RoomSidebar({
               const unreadCount = unreadCounts[room.id] || 0;
 
               return (
-                <motion.button
+                <motion.div
                   key={room.id}
+                  role="button"
+                  tabIndex={0}
                   initial={{ opacity: 0, x: -8 }}
                   animate={{ opacity: 1, x: 0 }}
                   whileHover={{ x: 2 }}
@@ -179,6 +206,13 @@ export function RoomSidebar({
                   onClick={() => {
                     setMenuRoomId(null);
                     onSelectRoom(room);
+                  }}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter" || e.key === " ") {
+                      e.preventDefault();
+                      setMenuRoomId(null);
+                      onSelectRoom(room);
+                    }
                   }}
                   className={cn(
                     "group relative flex w-full items-center gap-2.5 overflow-hidden rounded-xl px-3 py-2 text-left text-sm transition-all duration-200",
@@ -264,7 +298,7 @@ export function RoomSidebar({
                   >
                     <MoreHorizontal className="h-3.5 w-3.5" />
                   </motion.button>
-                </motion.button>
+                </motion.div>
               );
             })}
           </div>

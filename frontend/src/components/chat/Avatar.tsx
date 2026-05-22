@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { AnimatePresence, motion } from "framer-motion";
 import { cn } from "../../lib/utils";
 
 const gradientPairs = [
@@ -63,14 +64,20 @@ export function Avatar({
             sizeMap[size],
           )}
         />
-        {showStatus && (
-          <span
-            className={cn(
-              "absolute -bottom-0.5 -right-0.5 h-3 w-3 rounded-full border border-zinc-950 shadow-[0_0_8px_rgba(16,185,129,0.45)]",
-              isOnline ? "bg-emerald-400" : "bg-zinc-600",
-            )}
-          />
-        )}
+        <AnimatePresence mode="popLayout">
+          {showStatus && (
+            <motion.span
+              initial={{ scale: 0, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0, opacity: 0 }}
+              transition={{ type: "spring", stiffness: 400, damping: 25 }}
+              className={cn(
+              "absolute -bottom-0.5 -right-0.5 h-3 w-3 rounded-full border-2 border-zinc-950 transition-colors duration-300",
+                isOnline ? "bg-[#23a559]" : "bg-zinc-500",
+              )}
+            />
+          )}
+        </AnimatePresence>
       </div>
     );
   }
@@ -86,14 +93,20 @@ export function Avatar({
       >
         {initials || "P"}
       </div>
-      {showStatus && (
-        <span
-          className={cn(
-            "absolute -bottom-0.5 -right-0.5 h-3 w-3 rounded-full border border-zinc-950 shadow-[0_0_8px_rgba(16,185,129,0.45)]",
-            isOnline ? "bg-emerald-400" : "bg-zinc-600",
-          )}
-        />
-      )}
+      <AnimatePresence mode="popLayout">
+        {showStatus && (
+          <motion.span
+            initial={{ scale: 0, opacity: 0 }}
+            animate={{ scale: 1, opacity: 1 }}
+            exit={{ scale: 0, opacity: 0 }}
+            transition={{ type: "spring", stiffness: 400, damping: 25 }}
+            className={cn(
+              "absolute -bottom-0.5 -right-0.5 h-3 w-3 rounded-full border-2 border-zinc-950 transition-colors duration-300",
+              isOnline ? "bg-[#23a559]" : "bg-zinc-500",
+            )}
+          />
+        )}
+      </AnimatePresence>
     </div>
   );
 }
