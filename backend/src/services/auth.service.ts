@@ -134,4 +134,28 @@ export const authService = {
             user: safeUser,
         };
     },
+
+    async getUsers(userId: string) {
+        if (!userId) {
+            throw new UnauthorizedError("User not authenticated");
+        }
+
+        const users = await prisma.user.findMany({
+            where: {
+                NOT: {
+                    id: userId,
+                },
+            },
+            select: {
+                id: true,
+                username: true,
+                avatar: true,
+            },
+            orderBy: {
+                username: "asc",
+            },
+        });
+
+        return users;
+    },
 };

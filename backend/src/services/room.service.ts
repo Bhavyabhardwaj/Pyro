@@ -32,13 +32,155 @@ export const roomService = {
                 userId
             },
             include: {
-                room: true,
+                room: {
+                    include: {
+                        roomMembers: {
+                            include: {
+                                user: {
+                                    select: {
+                                        id: true,
+                                        username: true,
+                                        avatar: true,
+                                    }
+                                }
+                            }
+                        },
+                        messages: {
+                            orderBy: {
+                                createdAt: "desc"
+                            },
+                            take: 1,
+                            include: {
+                                author: {
+                                    select: {
+                                        id: true,
+                                        username: true,
+                                        avatar: true,
+                                    }
+                                }
+                            }
+                        }
+                    }
+                },
             },
             orderBy: {
                 createdAt: "desc",
             },
         });
         return rooms;
+    },
+    async createDM(userId: string, targetUserId: string) {
+        if (!userId || !targetUserId) {
+            throw new BadRequestError("Both participant IDs are required");
+        }
+
+        const existingDM = await prisma.room.findFirst({
+            where: {
+                isDM: true,
+                AND: [
+                    {
+                        roomMembers: {
+                            some: {
+                                userId: userId
+                            }
+                        }
+                    },
+                    {
+                        roomMembers: {
+                            some: {
+                                userId: targetUserId
+                            }
+                        }
+                    }
+                ]
+            },
+            include: {
+                roomMembers: {
+                    include: {
+                        user: {
+                            select: {
+                                id: true,
+                                username: true,
+                                avatar: true,
+                            }
+                        }
+                    }
+                },
+                messages: {
+                    orderBy: {
+                        createdAt: "desc"
+                    },
+                    take: 1,
+                    include: {
+                        author: {
+                            select: {
+                                id: true,
+                                username: true,
+                                avatar: true,
+                            }
+                        }
+                    }
+                }
+            }
+        });
+
+        if (existingDM) {
+            return existingDM;
+        }
+
+        const targetUser = await prisma.user.findUnique({ where: { id: targetUserId } });
+        const currentUser = await prisma.user.findUnique({ where: { id: userId } });
+        if (!targetUser || !currentUser) {
+            throw new BadRequestError("User not found");
+        }
+
+        const dmRoom = await prisma.room.create({
+            data: {
+                name: `dm-${currentUser.username}-${targetUser.username}`,
+                isDM: true,
+            }
+        });
+
+        await prisma.roomMember.createMany({
+            data: [
+                { roomId: dmRoom.id, userId: userId },
+                { roomId: dmRoom.id, userId: targetUserId }
+            ]
+        });
+
+        const finalRoom = await prisma.room.findUnique({
+            where: { id: dmRoom.id },
+            include: {
+                roomMembers: {
+                    include: {
+                        user: {
+                            select: {
+                                id: true,
+                                username: true,
+                                avatar: true,
+                            }
+                        }
+                    }
+                },
+                messages: {
+                    orderBy: {
+                        createdAt: "desc"
+                    },
+                    take: 1,
+                    include: {
+                        author: {
+                            select: {
+                                id: true,
+                                username: true,
+                                avatar: true,
+                            }
+                        }
+                    }
+                }
+            }
+        });
+
+        return finalRoom;
     },
     async joinRoom(roomId: string, userId: string) {
         const room = await prisma.room.findUnique({

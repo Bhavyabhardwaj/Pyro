@@ -1,11 +1,11 @@
 import {
-  Flame,
   MessageSquarePlus,
   MoreHorizontal,
   Trash2,
   X,
   Search,
   UserMinus,
+  UserPlus
 } from "lucide-react";
 import { AnimatePresence, motion } from "framer-motion";
 import { useEffect, useMemo, useRef, useState } from "react";
@@ -17,6 +17,33 @@ import { Input } from "../ui/input";
 import { PyroMark } from "../ui/surface";
 import { Skeleton } from "../ui/skeleton";
 import { ProfileMenu } from "./ProfileMenu";
+import { Avatar } from "./Avatar";
+import { authService } from "../../services/auth.service";
+
+// Helper to format timestamps cleanly
+const formatMessageTime = (dateStr?: string) => {
+  if (!dateStr) return "";
+  const d = new Date(dateStr);
+  const now = new Date();
+  
+  if (d.toDateString() === now.toDateString()) {
+    return d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+  }
+  
+  const yesterday = new Date(now);
+  yesterday.setDate(now.getDate() - 1);
+  if (d.toDateString() === yesterday.toDateString()) {
+    return "Yesterday";
+  }
+  
+  const diffTime = Math.abs(now.getTime() - d.getTime());
+  const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+  if (diffDays < 7) {
+    return d.toLocaleDateString([], { weekday: "short" });
+  }
+  
+  return d.toLocaleDateString([], { month: "short", day: "numeric" });
+};
 
 export function RoomSidebar({
   rooms,
@@ -30,6 +57,8 @@ export function RoomSidebar({
   user,
   unreadCounts,
   onlineUsersCount = 0,
+  onlineUsers = new Set<string>(),
+  typingUsersByRoom = {},
   onRoomFilterChange,
   onNewRoomNameChange,
   onCreateRoom,
@@ -40,6 +69,7 @@ export function RoomSidebar({
   onDeleteRoom,
   onAvatarChange,
   onLogout,
+  onCreateDM,
 }: {
   rooms: RoomMember[];
   selectedRoom: Room | null;
@@ -52,6 +82,8 @@ export function RoomSidebar({
   user: User | null;
   unreadCounts: Record<string, number>;
   onlineUsersCount?: number;
+  onlineUsers?: Set<string>;
+  typingUsersByRoom?: Record<string, Set<string>>;
   onRoomFilterChange: (value: string) => void;
   onNewRoomNameChange: (value: string) => void;
   onCreateRoom: () => void;
@@ -62,10 +94,59 @@ export function RoomSidebar({
   onDeleteRoom: (roomId: string) => void;
   onAvatarChange: (avatarUrl: string) => void;
   onLogout: () => void;
+  onCreateDM?: (targetUserId: string) => Promise<void>;
 }) {
   const [menuRoomId, setMenuRoomId] = useState<string | null>(null);
   const [menuAnchor, setMenuAnchor] = useState<{ roomId: string; x: number; y: number } | null>(null);
   const menuRef = useRef<HTMLDivElement | null>(null);
+  
+  // DM Modal States
+  const [isStartDMOpen, setIsStartDMOpen] = useState(false);
+  const [dmSearchQuery, setDmSearchQuery] = useState("");
+  const [dmUsers, setDmUsers] = useState<User[]>([]);
+  const [isFetchingDmUsers, setIsFetchingDmUsers] = useState(false);
+  const [selectedUserIndex, setSelectedUserIndex] = useState(0);
+  const dmModalRef = useRef<HTMLDivElement | null>(null);
+  const dmSearchInputRef = useRef<HTMLInputElement | null>(null);
+
+  // Fetch workspace users when the DM modal is opened
+  useEffect(() => {
+    if (!isStartDMOpen) return;
+    
+    const fetchUsers = async () => {
+      setIsFetchingDmUsers(true);
+      try {
+        const response = await authService.getUsers();
+        if (response.success && response.data) {
+          // Filter out currently logged in user
+          const filtered = response.data.filter((u) => u.id !== user?.id);
+          setDmUsers(filtered);
+        }
+      } catch (error) {
+        console.error("Error fetching workspace users for DM:", error);
+      } finally {
+        setIsFetchingDmUsers(false);
+      }
+    };
+    
+    fetchUsers();
+    setDmSearchQuery("");
+    setSelectedUserIndex(0);
+    setTimeout(() => dmSearchInputRef.current?.focus(), 100);
+  }, [isStartDMOpen, user]);
+
+  // Build a username map from roomMembers to resolve typing indicators in the sidebar
+  const userMap = useMemo(() => {
+    const map: Record<string, User> = {};
+    rooms.forEach((rm) => {
+      rm.room.roomMembers?.forEach((member) => {
+        map[member.user.id] = member.user;
+      });
+    });
+    return map;
+  }, [rooms]);
+
+  // Filter and split channels and DMs
   const filteredRooms = useMemo(() => {
     if (!roomFilter.trim()) return rooms;
     const lowered = roomFilter.trim().toLowerCase();
@@ -73,6 +154,60 @@ export function RoomSidebar({
       roomMember.room.name.toLowerCase().includes(lowered),
     );
   }, [roomFilter, rooms]);
+
+  const channels = useMemo(() => {
+    return filteredRooms.filter((rm) => !rm.room.isDM);
+  }, [filteredRooms]);
+
+  const dms = useMemo(() => {
+    return filteredRooms.filter((rm) => rm.room.isDM);
+  }, [filteredRooms]);
+
+  // Filtered and sorted users list for starting DMs
+  const filteredDmUsers = useMemo(() => {
+    const query = dmSearchQuery.trim().toLowerCase();
+    let result = dmUsers;
+    if (query) {
+      result = dmUsers.filter(
+        (u) =>
+          u.username.toLowerCase().includes(query) ||
+          (u.email && u.email.toLowerCase().includes(query))
+      );
+    }
+    // Sort online users first
+    return [...result].sort((a, b) => {
+      const aOnline = onlineUsers.has(a.id) ? 1 : 0;
+      const bOnline = onlineUsers.has(b.id) ? 1 : 0;
+      return bOnline - aOnline;
+    });
+  }, [dmUsers, dmSearchQuery, onlineUsers]);
+
+  // Keyboard navigation inside Start DM Modal
+  useEffect(() => {
+    if (!isStartDMOpen || filteredDmUsers.length === 0) return;
+    
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "ArrowDown") {
+        e.preventDefault();
+        setSelectedUserIndex((prev) => (prev + 1) % filteredDmUsers.length);
+      } else if (e.key === "ArrowUp") {
+        e.preventDefault();
+        setSelectedUserIndex((prev) => (prev - 1 + filteredDmUsers.length) % filteredDmUsers.length);
+      } else if (e.key === "Enter") {
+        e.preventDefault();
+        const targetUser = filteredDmUsers[selectedUserIndex];
+        if (targetUser && onCreateDM) {
+          onCreateDM(targetUser.id);
+          setIsStartDMOpen(false);
+        }
+      } else if (e.key === "Escape") {
+        setIsStartDMOpen(false);
+      }
+    };
+    
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [isStartDMOpen, filteredDmUsers, selectedUserIndex, onCreateDM]);
 
   useEffect(() => {
     if (!menuAnchor) return;
@@ -97,253 +232,320 @@ export function RoomSidebar({
     };
   }, [menuAnchor]);
 
-  return (
-    <aside className="relative flex h-full min-h-0 flex-col overflow-hidden rounded-none border-white/8 bg-[linear-gradient(180deg,rgba(24,24,27,0.88),rgba(9,9,11,0.92)_48%,rgba(12,12,16,0.95))] shadow-2xl shadow-black/35 md:rounded-3xl md:border xl:rounded-[1.7rem]">
-      <div className="pointer-events-none absolute -left-24 top-8 h-44 w-44 rounded-full bg-cyan-300/10 blur-3xl" />
-      <div className="pointer-events-none absolute -right-28 bottom-20 h-56 w-56 rounded-full bg-violet-300/[0.07] blur-3xl" />
-      <div className="pointer-events-none absolute inset-x-6 top-24 h-px bg-linear-to-r from-transparent via-white/10 to-transparent" />
+  const renderRoomRow = (room: Room, index: number, isDM: boolean) => {
+    const active = selectedRoom?.id === room.id;
+    const unreadCount = unreadCounts[room.id] || 0;
 
-      <div className="relative border-b border-white/8 p-3">
+    // Resolve details dynamically based on whether it is a DM or Channel
+    let displayName = room.name;
+    let displayAvatar = room.name;
+    let isOnline = false;
+    let otherUser: User | undefined;
+
+    if (isDM) {
+      const otherMember = room.roomMembers?.find((m) => m.user.id !== user?.id);
+      if (otherMember) {
+        otherUser = otherMember.user;
+        displayName = otherUser.username;
+        displayAvatar = otherUser.username;
+        isOnline = onlineUsers.has(otherUser.id);
+      }
+    } else {
+      // General channel online rule or index-based fallback for realism
+      isOnline = index % 3 === 0;
+    }
+
+    // Typing state for this specific room
+    const typingIds = Array.from(typingUsersByRoom[room.id] ?? new Set<string>());
+    const activeTypers = typingIds.filter((id) => id !== user?.id);
+    const isTyping = activeTypers.length > 0;
+    const typingText = isTyping
+      ? activeTypers.map((id) => userMap[id]?.username || "Someone").join(", ") + " is typing..."
+      : "";
+
+    // Parse latest real message
+    const lastMsg = room.lastMessage;
+    const hasLastMsg = !!lastMsg;
+    const lastMsgSender = lastMsg?.author.id === user?.id ? "You" : lastMsg?.author.username;
+    
+    // Preview Content & time
+    const previewText = isTyping
+      ? typingText
+      : hasLastMsg
+      ? `${lastMsgSender}: ${lastMsg.content}`
+      : "No messages yet";
+    
+    const previewTime = lastMsg ? formatMessageTime(lastMsg.createdAt) : "";
+
+    return (
+      <motion.div
+        key={room.id}
+        role="button"
+        tabIndex={0}
+        initial={{ opacity: 0, y: 3 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{
+          delay: index * 0.015,
+          type: "spring",
+          stiffness: 400,
+          damping: 30,
+        }}
+        onClick={() => {
+          setMenuRoomId(null);
+          onSelectRoom(room);
+        }}
+        onKeyDown={(e) => {
+          if (e.key === "Enter" || e.key === " ") {
+            e.preventDefault();
+            setMenuRoomId(null);
+            onSelectRoom(room);
+          }
+        }}
+        className={cn(
+          "group relative flex w-full items-center gap-2.5 rounded-lg p-2 text-left transition-all duration-150 cursor-pointer select-none",
+          active
+            ? "bg-[rgba(242,242,239,0.055)] text-[var(--text-primary)] shadow-[inset_0_1px_0_rgba(255,255,255,0.02),0_4px_12px_rgba(0,0,0,0.2)]"
+            : "text-[var(--text-secondary)] hover:bg-[rgba(242,242,239,0.02)] hover:text-[var(--text-primary)]",
+        )}
+      >
+        {/* Subtle Glow & Active line indicator */}
+        {active && (
+          <span className="absolute left-0 top-1/2 h-4 w-[2px] -translate-y-1/2 rounded-full bg-[var(--accent-teal)] opacity-90 shadow-[0_0_8px_rgba(45,212,191,0.3)]" />
+        )}
+
+        {/* LEFT: Avatar & online indicator */}
+        <Avatar
+          name={displayAvatar}
+          size="sm"
+          showStatus={true}
+          isOnline={isOnline}
+          className="shrink-0"
+        />
+
+        {/* CENTER: Name & message preview */}
+        <div className="min-w-0 flex-1">
+          <div className="flex items-baseline justify-between">
+            <span className={cn(
+              "block truncate text-[11.5px] tracking-tight font-medium",
+              active ? "text-[var(--text-primary)]" : "text-neutral-300 group-hover:text-[var(--text-primary)]",
+              unreadCount > 0 && "font-semibold text-[var(--text-primary)]"
+            )}>
+              {displayName}
+            </span>
+            {/* RIGHT: Timestamp */}
+            {previewTime && (
+              <span className="text-[9.5px] text-[var(--text-muted)] ml-2 shrink-0 font-normal">
+                {previewTime}
+              </span>
+            )}
+          </div>
+          <p className={cn(
+            "truncate text-[10px] mt-0.5 leading-normal pr-3",
+            isTyping 
+              ? "text-[var(--accent-teal)] font-medium animate-pulse" 
+              : unreadCount > 0 
+              ? "text-neutral-200 font-semibold" 
+              : "text-[var(--text-muted)]"
+          )}>
+            {previewText}
+          </p>
+        </div>
+
+        {/* RIGHT Side Badges and Menu Actions */}
+        <div className="flex items-center gap-1.5 shrink-0 ml-1.5">
+          {unreadCount > 0 && (
+            <motion.span
+              initial={{ scale: 0.8 }}
+              animate={{ scale: 1 }}
+              className="rounded-full bg-teal-500/20 px-1.5 py-0.5 text-[8.5px] font-semibold text-[var(--accent-teal)]"
+            >
+              {unreadCount}
+            </motion.span>
+          )}
+
+          <motion.button
+            type="button"
+            whileHover={{ scale: 1.05 }}
+            whileTap={{ scale: 0.95 }}
+            onClick={(event) => {
+              event.stopPropagation();
+              const target = event.currentTarget as HTMLElement;
+              const rect = target.getBoundingClientRect();
+              const menuWidth = 144;
+              const menuHeight = 90;
+              const nextX = Math.min(
+                Math.max(12, rect.right - menuWidth),
+                window.innerWidth - menuWidth - 12,
+              );
+              const nextY = Math.min(
+                rect.bottom + 6,
+                window.innerHeight - menuHeight - 12,
+              );
+              setMenuRoomId((current) => (current === room.id ? null : room.id));
+              setMenuAnchor((current) =>
+                current?.roomId === room.id
+                  ? null
+                  : { roomId: room.id, x: nextX, y: nextY },
+              );
+            }}
+            className="relative z-10 flex h-5 w-5 items-center justify-center rounded text-[var(--text-muted)] opacity-0 transition duration-150 group-hover:opacity-100 hover:bg-white/5 hover:text-[var(--text-primary)]"
+            aria-label="Room actions"
+          >
+            <MoreHorizontal className="h-3.5 w-3.5" />
+          </motion.button>
+        </div>
+      </motion.div>
+    );
+  };
+
+  return (
+    <aside className="relative flex h-full min-h-0 flex-col overflow-hidden border-[var(--border-muted)] bg-gradient-to-b from-[rgba(22,22,21,0.94)] to-[rgba(16,16,15,0.98)] shadow-[0_20px_50px_rgba(0,0,0,0.55),inset_0_1px_0_rgba(255,255,255,0.015)] md:rounded-[1.25rem] md:border backdrop-blur-2xl">
+      {/* Top Brand Section - Extremely Compact */}
+      <div className="relative border-b border-[var(--border-muted)] px-3.5 py-3">
         <div className="flex items-center justify-between">
-          <div className="flex items-center gap-2.5">
-            <PyroMark />
+          <div className="flex items-center gap-2">
+            <PyroMark className="h-7 w-7" />
             <div className="min-w-0">
-              <p className="text-xs font-semibold text-white">Pyro</p>
-              <div className="flex items-center gap-1.5 mt-0.5">
-                <span className="truncate text-[10px] text-zinc-500">Workspace</span>
-                <span className="text-[10px] text-zinc-700">•</span>
-                <div className="flex items-center gap-1.5" title={`${onlineUsersCount} user${onlineUsersCount === 1 ? '' : 's'} online`}>
-                  <span className="relative flex h-1.5 w-1.5">
-                    <AnimatePresence>
-                      {onlineUsersCount > 0 && (
-                        <motion.span
-                          initial={{ scale: 0.5, opacity: 0 }}
-                          animate={{ scale: 1, opacity: 1 }}
-                          exit={{ scale: 0.5, opacity: 0 }}
-                          className="absolute inline-flex h-full w-full rounded-full bg-[#23a559]"
-                        />
-                      )}
-                    </AnimatePresence>
-                    {onlineUsersCount === 0 && <span className="absolute inline-flex h-full w-full rounded-full bg-zinc-600" />}
-                  </span>
-                  <span className="text-[10px] font-medium text-zinc-400">
-                    {onlineUsersCount} online
+              <div className="flex items-center gap-1.5">
+                <span className="text-[13px] font-medium tracking-tight text-[var(--text-primary)]">Pyro</span>
+                <span className="text-[10px] text-[var(--text-muted)]">•</span>
+                <div className="flex items-center gap-1" title={`${onlineUsersCount} online`}>
+                  <span className="relative flex h-1.5 w-1.5 shrink-0 rounded-full bg-emerald-500 shadow-[0_0_6px_rgba(16,185,129,0.4)]" />
+                  <span className="text-[10px] text-[var(--text-secondary)] font-medium">
+                    {onlineUsersCount}
                   </span>
                 </div>
               </div>
+              <p className="text-[10px] text-[var(--text-muted)] leading-none mt-0.5">Workspace Channels</p>
             </div>
           </div>
         </div>
       </div>
 
-      <div className="relative space-y-2.5 border-b border-white/8 p-3">
+      {/* Search and Action Bar */}
+      <div className="relative space-y-2 border-b border-[var(--border-muted)] p-2.5">
         <div className="relative">
-          <Search className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-zinc-700" />
+          <Search className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-[var(--text-muted)]" />
           <Input
             value={roomFilter}
             onChange={(event) => onRoomFilterChange(event.target.value)}
-            placeholder="Search rooms"
-            className="pl-8 text-sm"
+            placeholder="Search channels & DMs"
+            className="h-8 pl-8 text-xs border-[var(--border-muted)] bg-[var(--bg-charcoal)] placeholder:text-[var(--text-muted)] focus:border-[var(--border-subtle)] focus:ring-0"
           />
         </div>
-        <motion.div
-          whileHover={{ scale: 1.01 }}
-          whileTap={{ scale: 0.98 }}
-        >
-          <Button
-            variant="secondary"
-            className="w-full rounded-lg text-sm"
-            onClick={onOpenCreate}
-            disabled={isCreating}
-          >
-            <MessageSquarePlus className="h-3.5 w-3.5" />
-            {isCreating ? "Creating..." : "New room"}
-          </Button>
-        </motion.div>
+        <div className="grid grid-cols-2 gap-1.5">
+          <motion.div whileHover={{ scale: 1.01 }} whileTap={{ scale: 0.99 }}>
+            <Button
+              variant="secondary"
+              className="h-7.5 w-full rounded-lg text-[10.5px] font-normal border border-[var(--border-muted)] bg-[var(--bg-charcoal)] hover:bg-[var(--bg-graphite-light)] text-[var(--text-secondary)] flex items-center justify-center gap-1"
+              onClick={onOpenCreate}
+              disabled={isCreating}
+            >
+              <MessageSquarePlus className="h-3 w-3 text-[var(--text-secondary)]" />
+              Channel
+            </Button>
+          </motion.div>
+          <motion.div whileHover={{ scale: 1.01 }} whileTap={{ scale: 0.99 }}>
+            <Button
+              variant="secondary"
+              className="h-7.5 w-full rounded-lg text-[10.5px] font-normal border border-[var(--border-muted)] bg-[var(--bg-charcoal)] hover:bg-[var(--bg-graphite-light)] text-[var(--text-secondary)] flex items-center justify-center gap-1"
+              onClick={() => setIsStartDMOpen(true)}
+            >
+              <UserPlus className="h-3 w-3 text-[var(--text-secondary)]" />
+              Direct Message
+            </Button>
+          </motion.div>
+        </div>
       </div>
 
-      <div className="relative min-h-0 flex-1 overflow-y-auto p-2">
-        <div className="mb-2.5 flex items-center justify-between px-2">
-          <span className="text-xs font-semibold uppercase tracking-[0.15em] text-zinc-600">
-            Rooms
-          </span>
-          <span className="text-xs text-zinc-700">{filteredRooms.length}</span>
-        </div>
-
+      {/* Dense Scannable Room list */}
+      <div className="relative min-h-0 flex-1 overflow-y-auto timeline-scrollbar p-1.5 space-y-4">
         {isLoading ? (
-          <div className="space-y-2">
-            {[0, 1, 2, 3].map((item) => (
-              <Skeleton key={item} className="h-12" />
+          <div className="space-y-1.5 p-1">
+            {[0, 1, 2, 3, 4].map((item) => (
+              <Skeleton key={item} className="h-10 rounded-lg bg-[var(--bg-charcoal)]" />
             ))}
           </div>
         ) : filteredRooms.length === 0 ? (
-          <div className="rounded-2xl border border-dashed border-white/10 p-4 text-sm leading-6 text-zinc-500">
-            No matches. Create a new room to start a realtime conversation.
+          <div className="m-2 rounded-xl border border-dashed border-[var(--border-muted)] p-4 text-center text-xs text-[var(--text-muted)] leading-relaxed bg-[var(--bg-charcoal)]">
+            No matches. Start a channel or DM to begin.
           </div>
         ) : (
-          <div className="space-y-1">
-            {filteredRooms.map((roomMember, index) => {
-              const room = roomMember.room;
-              const active = selectedRoom?.id === room.id;
-              const initial = room.name.slice(0, 1).toUpperCase();
-              const unreadCount = unreadCounts[room.id] || 0;
-
-              return (
-                <motion.div
-                  key={room.id}
-                  role="button"
-                  tabIndex={0}
-                  initial={{ opacity: 0, x: -8 }}
-                  animate={{ opacity: 1, x: 0 }}
-                  whileHover={{ x: 2 }}
-                  whileTap={{ scale: 0.98 }}
-                  transition={{
-                    delay: index * 0.025,
-                    type: "spring",
-                    stiffness: 360,
-                    damping: 28,
-                  }}
-                  onClick={() => {
-                    setMenuRoomId(null);
-                    onSelectRoom(room);
-                  }}
-                  onKeyDown={(e) => {
-                    if (e.key === "Enter" || e.key === " ") {
-                      e.preventDefault();
-                      setMenuRoomId(null);
-                      onSelectRoom(room);
-                    }
-                  }}
-                  className={cn(
-                    "group relative flex w-full items-center gap-2.5 overflow-hidden rounded-xl px-3 py-2 text-left text-sm transition-all duration-200",
-                    active
-                      ? "border border-cyan-200/15 bg-white/7 text-white shadow-[0_12px_32px_rgba(0,0,0,0.24)]"
-                      : "border border-transparent text-zinc-500 hover:border-white/8 hover:bg-white/3 hover:text-zinc-200",
-                  )}
-                >
-                  {active && (
-                    <motion.span
-                      layoutId="active-room-glow"
-                      initial={{ opacity: 0 }}
-                      animate={{ opacity: 1 }}
-                      className="absolute inset-0 bg-[radial-gradient(circle_at_18%_50%,rgba(103,232,249,0.08),transparent_36%)]"
-                    />
-                  )}
-                  {active && (
-                    <motion.span
-                      initial={{ scaleY: 0 }}
-                      animate={{ scaleY: 1 }}
-                      className="absolute left-0 top-1/2 h-6 w-0.5 -translate-y-1/2 rounded-full bg-cyan-300 origin-center"
-                    />
-                  )}
-                  <span
-                    className={cn(
-                      "relative flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border text-xs font-semibold transition-all duration-200",
-                      active
-                        ? "border-cyan-200/20 bg-cyan-200/10 text-cyan-100"
-                        : "border-white/8 bg-white/3 text-zinc-500 group-hover:text-zinc-300",
-                    )}
-                  >
-                    {active ? <Flame className="h-3.5 w-3.5" /> : initial}
+          <>
+            {/* CHANNELS SECTION */}
+            {channels.length > 0 && (
+              <div>
+                <div className="mb-1 flex items-center justify-between px-2 pt-1">
+                  <span className="text-[9.5px] font-bold uppercase tracking-[0.12em] text-[var(--text-muted)]">
+                    Channels
                   </span>
-                  <div className="min-w-0 flex-1">
-                    <span className={cn("block truncate text-[0.9rem]", active ? "text-white font-medium" : "text-zinc-300")}>
-                      {room.name}
-                    </span>
-                  </div>
-                  {unreadCount > 0 && (
-                    <motion.span
-                      initial={{ scale: 0.8 }}
-                      animate={{ scale: 1 }}
-                      className="rounded-full bg-cyan-200/20 px-2 py-0.5 text-[10px] font-semibold text-cyan-100"
-                    >
-                      {unreadCount}
-                    </motion.span>
-                  )}
-                  <span
-                    className={cn(
-                      "ml-auto h-1.5 w-1.5 rounded-full transition-all duration-200",
-                      active
-                        ? "bg-cyan-200 shadow-[0_0_12px_rgba(103,232,249,0.6)]"
-                        : "bg-white/8 group-hover:bg-white/20",
-                    )}
-                  />
-                  <motion.button
-                    type="button"
-                    whileHover={{ scale: 1.08 }}
-                    whileTap={{ scale: 0.92 }}
-                    onClick={(event) => {
-                      event.stopPropagation();
-                      const target = event.currentTarget as HTMLElement;
-                      const rect = target.getBoundingClientRect();
-                      const menuWidth = 176;
-                      const menuHeight = 120;
-                      const nextX = Math.min(
-                        Math.max(12, rect.right - menuWidth),
-                        window.innerWidth - menuWidth - 12,
-                      );
-                      const nextY = Math.min(
-                        rect.bottom + 8,
-                        window.innerHeight - menuHeight - 12,
-                      );
-                      setMenuRoomId((current) => (current === room.id ? null : room.id));
-                      setMenuAnchor((current) =>
-                        current?.roomId === room.id
-                          ? null
-                          : { roomId: room.id, x: nextX, y: nextY },
-                      );
-                    }}
-                    className="relative z-10 flex h-6 w-6 items-center justify-center rounded-lg text-zinc-500 opacity-0 transition group-hover:opacity-100 hover:bg-white/10 hover:text-white"
-                    aria-label="Room actions"
-                  >
-                    <MoreHorizontal className="h-3.5 w-3.5" />
-                  </motion.button>
-                </motion.div>
-              );
-            })}
-          </div>
+                  <span className="text-[9px] text-[var(--text-muted)]">{channels.length}</span>
+                </div>
+                <div className="space-y-0.5">
+                  {channels.map((rm, idx) => renderRoomRow(rm.room, idx, false))}
+                </div>
+              </div>
+            )}
+
+            {/* DIRECT MESSAGES SECTION */}
+            {dms.length > 0 && (
+              <div>
+                <div className="mb-1 flex items-center justify-between px-2 pt-1">
+                  <span className="text-[9.5px] font-bold uppercase tracking-[0.12em] text-[var(--text-muted)]">
+                    Direct Messages
+                  </span>
+                  <span className="text-[9px] text-[var(--text-muted)]">{dms.length}</span>
+                </div>
+                <div className="space-y-0.5">
+                  {dms.map((rm, idx) => renderRoomRow(rm.room, idx, true))}
+                </div>
+              </div>
+            )}
+          </>
         )}
       </div>
 
-      <div className="relative border-t border-white/8 p-2.5">
+      {/* Bottom Profile Section */}
+      <div className="relative border-t border-[var(--border-muted)] p-2">
         <ProfileMenu user={user} onLogout={onLogout} onAvatarChange={onAvatarChange} />
       </div>
 
+      {/* New Room Modal Dialog with Premium Glassmorphism */}
       <AnimatePresence>
         {isCreateOpen && (
           <motion.div
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            className="absolute inset-0 z-30 flex items-center justify-center bg-black/50 p-4"
+            className="absolute inset-0 z-30 flex items-center justify-center bg-black/60 backdrop-blur-sm p-3"
             onClick={onCloseCreate}
           >
             <motion.div
-              initial={{ opacity: 0, y: 12, scale: 0.97 }}
+              initial={{ opacity: 0, y: 8, scale: 0.98 }}
               animate={{ opacity: 1, y: 0, scale: 1 }}
-              exit={{ opacity: 0, y: 12, scale: 0.97 }}
+              exit={{ opacity: 0, y: 8, scale: 0.98 }}
               onClick={(event) => event.stopPropagation()}
-              className="w-full max-w-sm rounded-2xl border border-white/10 bg-zinc-950/95 p-4 shadow-2xl shadow-black/60"
+              className="w-full max-w-[280px] rounded-xl border border-[var(--border-subtle)] bg-[rgba(22,22,21,0.92)] p-4 shadow-2xl shadow-black/80 backdrop-blur-md"
             >
               <div className="flex items-center justify-between">
                 <div>
-                  <h3 className="text-base font-semibold text-white">Create room</h3>
-                  <p className="mt-0.5 text-xs text-zinc-600">
-                    Short, memorable names work best.
+                  <h3 className="text-xs font-semibold text-[var(--text-primary)]">New channel</h3>
+                  <p className="mt-0.5 text-[10px] text-[var(--text-muted)]">
+                    Create a workspace channel.
                   </p>
                 </div>
                 <motion.button
                   type="button"
-                  whileHover={{ scale: 1.1 }}
-                  whileTap={{ scale: 0.9 }}
+                  whileHover={{ scale: 1.05 }}
+                  whileTap={{ scale: 0.95 }}
                   onClick={onCloseCreate}
-                  className="flex h-7 w-7 items-center justify-center rounded-lg text-zinc-500 transition hover:bg-white/10 hover:text-white"
+                  className="flex h-6 w-6 items-center justify-center rounded text-[var(--text-muted)] hover:bg-white/5 hover:text-[var(--text-primary)]"
                   aria-label="Close"
                 >
-                  <X className="h-3.5 w-3.5" />
+                  <X className="h-3 w-3" />
                 </motion.button>
               </div>
-              <div className="mt-4 space-y-2.5">
+              <div className="mt-3.5 space-y-2.5">
                 <Input
                   value={newRoomName}
                   onChange={(event) => onNewRoomNameChange(event.target.value)}
@@ -355,22 +557,23 @@ export function RoomSidebar({
                       onCloseCreate();
                     }
                   }}
-                  placeholder="Room name"
+                  placeholder="e.g. general"
+                  className="h-8 text-xs bg-[var(--bg-charcoal)] border-[var(--border-muted)] placeholder:text-[var(--text-muted)] focus:border-[var(--border-subtle)]"
                   autoFocus
                 />
                 {createError && (
-                  <p className="text-xs text-red-300">{createError}</p>
+                  <p className="text-[10px] text-red-400">{createError}</p>
                 )}
-                <div className="flex gap-2 pt-1">
+                <div className="flex gap-1.5 pt-1">
                   <Button
                     variant="secondary"
-                    className="flex-1 text-sm"
+                    className="flex-1 h-7.5 text-[11px] font-normal border border-[var(--border-muted)] bg-transparent hover:bg-white/5"
                     onClick={onCloseCreate}
                   >
                     Cancel
                   </Button>
                   <Button
-                    className="flex-1 text-sm"
+                    className="flex-1 h-7.5 text-[11px] font-normal bg-[var(--text-primary)] text-black hover:bg-white"
                     onClick={onCreateRoom}
                     disabled={isCreating}
                   >
@@ -383,43 +586,162 @@ export function RoomSidebar({
         )}
       </AnimatePresence>
 
+      {/* START DIRECT MESSAGE MODAL (Premium Glassmorphism Overlay) */}
+      <AnimatePresence>
+        {isStartDMOpen && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="absolute inset-0 z-30 flex items-center justify-center bg-black/60 backdrop-blur-sm p-3"
+            onClick={() => setIsStartDMOpen(false)}
+          >
+            <motion.div
+              ref={dmModalRef}
+              initial={{ opacity: 0, y: 8, scale: 0.98 }}
+              animate={{ opacity: 1, y: 0, scale: 1 }}
+              exit={{ opacity: 0, y: 8, scale: 0.98 }}
+              onClick={(event) => event.stopPropagation()}
+              className="w-full max-w-[280px] h-[340px] flex flex-col rounded-xl border border-[var(--border-subtle)] bg-[rgba(22,22,21,0.92)] p-4 shadow-2xl shadow-black/80 backdrop-blur-md"
+            >
+              <div className="flex items-center justify-between shrink-0 mb-3">
+                <div>
+                  <h3 className="text-xs font-semibold text-[var(--text-primary)]">Direct message</h3>
+                  <p className="mt-0.5 text-[10px] text-[var(--text-muted)]">
+                    Start a conversation with a teammate.
+                  </p>
+                </div>
+                <motion.button
+                  type="button"
+                  whileHover={{ scale: 1.05 }}
+                  whileTap={{ scale: 0.95 }}
+                  onClick={() => setIsStartDMOpen(false)}
+                  className="flex h-6 w-6 items-center justify-center rounded text-[var(--text-muted)] hover:bg-white/5 hover:text-[var(--text-primary)]"
+                  aria-label="Close"
+                >
+                  <X className="h-3 w-3" />
+                </motion.button>
+              </div>
+
+              {/* DM Search input */}
+              <div className="relative shrink-0 mb-2">
+                <Search className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-[var(--text-muted)]" />
+                <Input
+                  ref={dmSearchInputRef}
+                  value={dmSearchQuery}
+                  onChange={(e) => {
+                    setDmSearchQuery(e.target.value);
+                    setSelectedUserIndex(0);
+                  }}
+                  placeholder="Type a username or email..."
+                  className="h-8 pl-8 text-xs bg-[var(--bg-charcoal)] border-[var(--border-muted)] placeholder:text-[var(--text-muted)] focus:border-[var(--border-subtle)]"
+                />
+              </div>
+
+              {/* DM User selector list */}
+              <div className="flex-1 min-h-0 overflow-y-auto timeline-scrollbar space-y-0.5">
+                {isFetchingDmUsers ? (
+                  <div className="space-y-1.5 pt-1">
+                    {[0, 1, 2].map((item) => (
+                      <Skeleton key={item} className="h-9 rounded-lg bg-[var(--bg-charcoal)]" />
+                    ))}
+                  </div>
+                ) : filteredDmUsers.length === 0 ? (
+                  <div className="py-8 text-center text-[10.5px] text-[var(--text-muted)]">
+                    No matching users found
+                  </div>
+                ) : (
+                  filteredDmUsers.map((targetUser, idx) => {
+                    const isSelected = idx === selectedUserIndex;
+                    const isOnline = onlineUsers.has(targetUser.id);
+                    return (
+                      <div
+                        key={targetUser.id}
+                        onClick={() => {
+                          if (onCreateDM) {
+                            onCreateDM(targetUser.id);
+                            setIsStartDMOpen(false);
+                          }
+                        }}
+                        onMouseEnter={() => setSelectedUserIndex(idx)}
+                        className={cn(
+                          "flex items-center gap-2.5 rounded-lg p-2 text-left cursor-pointer transition-all duration-150 select-none",
+                          isSelected
+                            ? "bg-[rgba(242,242,239,0.055)] text-[var(--text-primary)]"
+                            : "text-[var(--text-secondary)] hover:bg-[rgba(242,242,239,0.02)] hover:text-[var(--text-primary)]"
+                        )}
+                      >
+                        <Avatar
+                          name={targetUser.username}
+                          size="sm"
+                          showStatus={true}
+                          isOnline={isOnline}
+                        />
+                        <div className="min-w-0 flex-1">
+                          <span className="block truncate text-[11px] font-medium text-[var(--text-primary)]">
+                            {targetUser.username}
+                          </span>
+                          {targetUser.email && (
+                            <span className="block truncate text-[9px] text-[var(--text-muted)]">
+                              {targetUser.email}
+                            </span>
+                          )}
+                        </div>
+                        {isOnline && (
+                          <span className="rounded-full bg-emerald-500/20 px-1 py-0.5 text-[8px] font-semibold text-emerald-400">
+                            Online
+                          </span>
+                        )}
+                      </div>
+                    );
+                  })
+                )}
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Action Popover Menu */}
       {menuAnchor && menuRoomId &&
         createPortal(
           <motion.div
             ref={menuRef}
-            initial={{ opacity: 0, y: -8, scale: 0.94 }}
+            initial={{ opacity: 0, y: -6, scale: 0.97 }}
             animate={{ opacity: 1, y: 0, scale: 1 }}
-            exit={{ opacity: 0, y: -8, scale: 0.94 }}
-            className="fixed z-50 w-40 rounded-xl border border-white/10 bg-zinc-950/95 p-1.5 shadow-2xl shadow-black/50"
+            exit={{ opacity: 0, y: -6, scale: 0.97 }}
+            transition={{ duration: 0.15, ease: "easeOut" }}
+            className="fixed z-50 w-36 rounded-xl border border-[rgba(255,255,255,0.08)] bg-[rgba(22,22,21,0.92)] p-1.5 shadow-[0_16px_40px_rgba(0,0,0,0.55),inset_0_1px_0_rgba(255,255,255,0.02)] backdrop-blur-2xl"
             style={{ left: `${menuAnchor.x}px`, top: `${menuAnchor.y}px` }}
           >
             <motion.button
               type="button"
-              whileHover={{ backgroundColor: "rgba(255,255,255,0.08)" }}
+              whileHover={{ backgroundColor: "rgba(255, 255, 255, 0.045)", color: "var(--text-primary)" }}
               onClick={(event) => {
                 event.stopPropagation();
                 onLeaveRoom(menuAnchor.roomId);
                 setMenuRoomId(null);
                 setMenuAnchor(null);
               }}
-              className="flex w-full items-center gap-2 rounded-lg px-2.5 py-1.5 text-xs text-zinc-300 transition"
+              className="flex w-full items-center gap-2 rounded-lg px-2.5 py-1.5 text-[11px] font-medium tracking-tight text-[var(--text-secondary)] transition-all duration-150"
             >
-              <UserMinus className="h-3 w-3" />
-              Leave room
+              <UserMinus className="h-3.5 w-3.5 text-[var(--text-muted)]" />
+              Leave
             </motion.button>
+            <div className="my-1 h-px bg-[var(--border-muted)]" />
             <motion.button
               type="button"
-              whileHover={{ backgroundColor: "rgba(239,68,68,0.1)" }}
+              whileHover={{ backgroundColor: "rgba(239, 68, 68, 0.08)", color: "#f87171" }}
               onClick={(event) => {
                 event.stopPropagation();
                 onDeleteRoom(menuAnchor.roomId);
                 setMenuRoomId(null);
                 setMenuAnchor(null);
               }}
-              className="flex w-full items-center gap-2 rounded-lg px-2.5 py-1.5 text-xs text-red-300 transition"
+              className="flex w-full items-center gap-2 rounded-lg px-2.5 py-1.5 text-[11px] font-medium tracking-tight text-red-400/90 transition-all duration-150"
             >
-              <Trash2 className="h-3 w-3" />
-              Delete room
+              <Trash2 className="h-3.5 w-3.5 text-red-400/70" />
+              Delete
             </motion.button>
           </motion.div>,
           document.body,

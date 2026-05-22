@@ -54,6 +54,7 @@ export const ModelName = {
   User: 'User',
   Message: 'Message',
   Room: 'Room',
+  Attachment: 'Attachment',
   RoomMember: 'RoomMember'
 } as const
 
@@ -101,11 +102,26 @@ export type MessageScalarFieldEnum = (typeof MessageScalarFieldEnum)[keyof typeo
 export const RoomScalarFieldEnum = {
   id: 'id',
   name: 'name',
+  isDM: 'isDM',
+  lastMessageId: 'lastMessageId',
   createdAt: 'createdAt',
   updatedAt: 'updatedAt'
 } as const
 
 export type RoomScalarFieldEnum = (typeof RoomScalarFieldEnum)[keyof typeof RoomScalarFieldEnum]
+
+
+export const AttachmentScalarFieldEnum = {
+  id: 'id',
+  url: 'url',
+  fileName: 'fileName',
+  mimeType: 'mimeType',
+  fileSize: 'fileSize',
+  messageId: 'messageId',
+  createdAt: 'createdAt'
+} as const
+
+export type AttachmentScalarFieldEnum = (typeof AttachmentScalarFieldEnum)[keyof typeof AttachmentScalarFieldEnum]
 
 
 export const RoomMemberScalarFieldEnum = {

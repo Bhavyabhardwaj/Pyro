@@ -20,10 +20,34 @@ export interface ApiResponse<T> {
 export interface Room {
   id: string;
   name: string;
+  isDM?: boolean;
+  lastMessage?: {
+    id: string;
+    content: string;
+    createdAt: string;
+    author: {
+      id: string;
+      username: string;
+      avatar?: string | null;
+    };
+  } | null;
+  roomMembers?: {
+    user: User;
+  }[];
 }
 
 export interface RoomMember {
   room: Room;
+}
+
+export interface Attachment {
+  id: string;
+  url: string;
+  fileName: string;
+  mimeType: string;
+  fileSize: number;
+  messageId: string;
+  createdAt: string;
 }
 
 export interface Message {
@@ -37,4 +61,8 @@ export interface Message {
     username: string;
     avatar?: string | null;
   };
+  attachments?: Attachment[];
+  // Delivery status flags (frontend-specific for premium feel)
+  status?: "sending" | "sent" | "delivered" | "failed";
 }
+

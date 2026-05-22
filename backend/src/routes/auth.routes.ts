@@ -7,6 +7,7 @@ const router = Router();
 router.post("/register", authController.register);
 router.post("/login", authController.login);
 router.get("/me", authMiddleware, authController.getMe);
+router.get("/users", authMiddleware, authController.getUsers);
 router.patch("/avatar", authMiddleware, authController.updateAvatar);
 
 export const authRouter = router;

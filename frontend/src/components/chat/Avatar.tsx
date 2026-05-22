@@ -3,11 +3,11 @@ import { AnimatePresence, motion } from "framer-motion";
 import { cn } from "../../lib/utils";
 
 const gradientPairs = [
-  "from-cyan-200/80 via-sky-400/50 to-indigo-500/80",
-  "from-emerald-200/80 via-teal-400/55 to-cyan-500/80",
-  "from-rose-200/80 via-pink-400/55 to-fuchsia-500/80",
-  "from-amber-200/80 via-orange-400/55 to-rose-500/80",
-  "from-violet-200/80 via-indigo-400/55 to-sky-500/80",
+  "from-neutral-700/50 to-neutral-800/70",
+  "from-zinc-700/50 to-zinc-800/70",
+  "from-slate-700/50 to-slate-800/70",
+  "from-stone-700/50 to-stone-800/70",
+  "from-zinc-800/60 to-zinc-900/80",
 ];
 
 const sizeMap = {
@@ -52,15 +52,22 @@ export function Avatar({
 
   const normalizedSrc = src?.startsWith("data:") ? src.split("#")[0] : src;
 
+  // Tiny offset adjustment for perfect positioning on circular shape
+  const presenceOffsetClass = size === "sm" 
+    ? "bottom-[0.5px] right-[0.5px]" 
+    : size === "md" 
+      ? "bottom-[1px] right-[1px]" 
+      : "bottom-[1.5px] right-[1.5px]";
+
   if (normalizedSrc && !hasError) {
     return (
-      <div className={cn("group relative", className)}>
+      <div className={cn("group relative shrink-0", className)}>
         <img
           src={normalizedSrc}
           alt={name}
           onError={() => setHasError(true)}
           className={cn(
-            "rounded-xl object-cover shadow-[0_10px_24px_rgba(0,0,0,0.35)] transition-all duration-200 group-hover:brightness-105",
+            "rounded-full object-cover shadow-[0_4px_12px_rgba(0,0,0,0.25)] transition-all duration-200 group-hover:brightness-105",
             sizeMap[size],
           )}
         />
@@ -70,10 +77,11 @@ export function Avatar({
               initial={{ scale: 0, opacity: 0 }}
               animate={{ scale: 1, opacity: 1 }}
               exit={{ scale: 0, opacity: 0 }}
-              transition={{ type: "spring", stiffness: 400, damping: 25 }}
+              transition={{ type: "spring", stiffness: 450, damping: 28 }}
               className={cn(
-              "absolute -bottom-0.5 -right-0.5 h-3 w-3 rounded-full border-2 border-zinc-950 transition-colors duration-300",
-                isOnline ? "bg-[#23a559]" : "bg-zinc-500",
+                "absolute h-2 w-2 rounded-full border border-[#111110] transition-colors duration-300 shadow-[0_0_0_1.5px_#111110,0_0_4px_rgba(16,185,129,0.25)]",
+                presenceOffsetClass,
+                isOnline ? "bg-emerald-500" : "bg-neutral-500",
               )}
             />
           )}
@@ -83,10 +91,10 @@ export function Avatar({
   }
 
   return (
-    <div className={cn("group relative", className)}>
+    <div className={cn("group relative shrink-0", className)}>
       <div
         className={cn(
-          "flex items-center justify-center rounded-xl border border-white/12 bg-linear-to-br text-xs font-semibold text-white shadow-[0_12px_28px_rgba(0,0,0,0.3)] transition group-hover:brightness-105",
+          "flex items-center justify-center rounded-full border border-white/6 bg-gradient-to-br text-[11px] font-medium tracking-wide text-neutral-200 shadow-[0_4px_12px_rgba(0,0,0,0.25)] transition group-hover:brightness-105",
           sizeMap[size],
           getGradient(name),
         )}
@@ -99,10 +107,11 @@ export function Avatar({
             initial={{ scale: 0, opacity: 0 }}
             animate={{ scale: 1, opacity: 1 }}
             exit={{ scale: 0, opacity: 0 }}
-            transition={{ type: "spring", stiffness: 400, damping: 25 }}
+            transition={{ type: "spring", stiffness: 450, damping: 28 }}
             className={cn(
-              "absolute -bottom-0.5 -right-0.5 h-3 w-3 rounded-full border-2 border-zinc-950 transition-colors duration-300",
-              isOnline ? "bg-[#23a559]" : "bg-zinc-500",
+              "absolute h-2 w-2 rounded-full border border-[#111110] transition-colors duration-300 shadow-[0_0_0_1.5px_#111110,0_0_4px_rgba(16,185,129,0.25)]",
+              presenceOffsetClass,
+              isOnline ? "bg-emerald-500" : "bg-neutral-500",
             )}
           />
         )}

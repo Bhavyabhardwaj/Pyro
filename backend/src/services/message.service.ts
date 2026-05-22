@@ -2,19 +2,27 @@ import { BadRequestError } from "../errors";
 import prisma from "../lib/prisma";
 import { getIO } from "../socket";
 
+interface AttachmentData {
+    url: string;
+    name: string;
+    mime: string;
+    size: number;
+}
+
 interface MessageData {
     roomId: string;
     userId: string;
     content: string;
+    attachments?: AttachmentData[];
 }
 
 export const messageService = {
     async sendMessage(messageData: MessageData) {
-        const { roomId, userId, content } = messageData;
+        const { roomId, userId, content, attachments } = messageData;
         const messageContent = content.trim();
 
-        if (!messageContent) {
-            throw new BadRequestError("Message content cannot be empty");
+        if (!messageContent && (!attachments || attachments.length === 0)) {
+            throw new BadRequestError("Message content or attachment is required");
         }
         const roomMember = await prisma.roomMember.findUnique({
             where: {
@@ -30,7 +38,7 @@ export const messageService = {
 
         const message = await prisma.message.create({
             data: {
-                content: messageContent,
+                content: messageContent || "Shared an attachment",
                 room: {
                     connect: {
                         id: roomId,
@@ -41,12 +49,35 @@ export const messageService = {
                         id: userId,
                     },
                 },
-
+                ...(attachments && attachments.length > 0 ? {
+                    attachments: {
+                        create: attachments.map((att) => ({
+                            url: att.url,
+                            fileName: att.name,
+                            mimeType: att.mime,
+                            fileSize: att.size,
+                        }))
+                    }
+                } : {}),
             },
             include: {
-                author: true
+                author: {
+                    select: {
+                        id: true,
+                        username: true,
+                        avatar: true,
+                    }
+                },
+                attachments: true
             }
         });
+
+        // Update the lastMessageId on the Room
+        await prisma.room.update({
+            where: { id: roomId },
+            data: { lastMessageId: message.id }
+        });
+
         getIO().to(roomId).emit(
             "newMessage",
             message
@@ -78,7 +109,8 @@ export const messageService = {
                         username: true,
                         avatar: true,
                     }
-                }
+                },
+                attachments: true
             },
             orderBy: {
                 createdAt: "asc",

@@ -42,4 +42,14 @@ export const authController = {
             next(error);
         }
     },
+    async getUsers(req: Request, res: Response, next: NextFunction): Promise<void> {
+        try {
+            const userId = (req as any).user?.userId as string | undefined;
+            const users = await authService.getUsers(userId ?? "");
+            responseUtils.success(res, users, "Users fetched successfully", 200);
+        }
+        catch (error) {
+            next(error);
+        }
+    },
 }

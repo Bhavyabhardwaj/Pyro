@@ -34,5 +34,16 @@ export const roomController = {
         } catch (error) {
             next(error);
         }
+    },
+    async createDM(req: Request, res: Response, next: NextFunction) {
+        try {
+            const userId = (req as any).user?.userId;
+            const targetUserId = req.body.targetUserId;
+
+            const room = await roomService.createDM(userId, targetUserId);
+            return responseUtils.success(res, room, "DM started successfully", 201);
+        } catch (error) {
+            next(error);
+        }
     }
 }

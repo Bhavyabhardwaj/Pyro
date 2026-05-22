@@ -51,12 +51,44 @@ export const initializeSocket = (server: HTTPServer) => {
             socket.leave(roomId);
             console.log(`User ${socket.id} left room ${roomId}`);
         });
+        socket.on("typingStart", (roomId: string) => {
+            console.debug("[socket] typingStart", { socketId: socket.id, userId, roomId });
+            socket.to(roomId).emit("userTyping", {
+                userId: socket.user?.userId,
+                roomId,
+            });
+        });
+
+        socket.on("typingStop", (roomId: string) => {
+            console.debug("[socket] typingStop", { socketId: socket.id, userId, roomId });
+            socket.to(roomId).emit("userStopTyping", {
+                userId: socket.user?.userId,
+                roomId,
+            });
+        });
+
+        socket.on("typing:start", (payload: { roomId: string; username: string }) => {
+            console.debug("[socket] typing:start", { socketId: socket.id, userId, roomId: payload.roomId });
+            socket.to(payload.roomId).emit("typing:start", {
+                userId,
+                username: payload.username,
+                roomId: payload.roomId,
+            });
+        });
+
+        socket.on("typing:stop", (payload: { roomId: string; username: string }) => {
+            console.debug("[socket] typing:stop", { socketId: socket.id, userId, roomId: payload.roomId });
+            socket.to(payload.roomId).emit("typing:stop", {
+                userId,
+                username: payload.username,
+                roomId: payload.roomId,
+            });
+        });
 
         socket.on("disconnect", () => {
             const disconnectedUserId = presenceService.removeUser(socket.id);
             if (disconnectedUserId) {
                 io.emit("userOffline", disconnectedUserId);
-                // also broadcast updated full list
                 io.emit("onlineUsers", presenceService.getOnlineUsers());
                 console.log(`User ${disconnectedUserId} is offline`);
             }

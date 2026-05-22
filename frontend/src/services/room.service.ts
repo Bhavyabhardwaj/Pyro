@@ -14,5 +14,9 @@ export const roomService = {
     async createRoom(name: string) {
         const response = await api.post<ApiResponse<Room>>("/rooms", { name });
         return response.data;
+    },
+    async createDM(targetUserId: string) {
+        const response = await api.post<ApiResponse<Room>>("/rooms/dm", { targetUserId });
+        return response.data;
     }
 }

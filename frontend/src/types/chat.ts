@@ -1,4 +1,4 @@
-import type { Message } from "./api";
+import type { Message, Attachment } from "./api";
 
 export type AttachmentKind = "image" | "file";
 
@@ -17,9 +17,9 @@ export interface MessageReaction {
   reacted: boolean;
 }
 
-export interface ChatMessage extends Message {
+export interface ChatMessage extends Omit<Message, "attachments"> {
   roomId?: string;
-  attachments?: AttachmentItem[];
+  attachments?: (Attachment | AttachmentItem)[];
   replyTo?: Pick<Message, "id" | "content" | "author" | "createdAt">;
   editedAt?: string;
   isPending?: boolean;
@@ -27,3 +27,4 @@ export interface ChatMessage extends Message {
   clientId?: string;
   reactions?: MessageReaction[];
 }
+

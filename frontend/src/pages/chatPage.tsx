@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
+import { api } from "../lib/axios";
 import { AnimatePresence, motion } from "framer-motion";
 import { useNavigate } from "react-router-dom";
 import { roomService } from "../services/room.service";
@@ -14,6 +15,7 @@ import { RoomSidebar } from "../components/chat/RoomSidebar";
 import { ChatHeader } from "../components/chat/ChatHeader";
 import { MessageList } from "../components/chat/MessageList";
 import { MessageComposer } from "../components/chat/MessageComposer";
+import { TypingIndicator } from "../components/chat/TypingIndicator";
 import { CommandPalette } from "../components/chat/CommandPalette";
 
 const ChatPage = () => {
@@ -34,7 +36,8 @@ const ChatPage = () => {
     const [composerAttachments, setComposerAttachments] = useState<AttachmentItem[]>([]);
     const [replyTo, setReplyTo] = useState<ChatMessage | null>(null);
     const [editingMessage, setEditingMessage] = useState<ChatMessage | null>(null);
-    const [typingUsers, setTypingUsers] = useState<string[]>([]);
+    const [typingUsersByRoom, setTypingUsersByRoom] = useState<Record<string, Set<string>>>({});
+    const [userIdToUsernameMap, setUserIdToUsernameMap] = useState<Record<string, string>>({});
     const [isConnected, setIsConnected] = useState(false);
     const [isCommandOpen, setIsCommandOpen] = useState(false);
     const [isMobileRoomsOpen, setIsMobileRoomsOpen] = useState(false);
@@ -48,11 +51,16 @@ const ChatPage = () => {
     const [createError, setCreateError] = useState<string | null>(null);
     const [isSendingMessage, setIsSendingMessage] = useState(false);
     const [onlineUsers, setOnlineUsers] = useState<Set<string>>(new Set());
+    const [uploadProgress, setUploadProgress] = useState<number | null>(null);
+    const [showNewMessagesBanner, setShowNewMessagesBanner] = useState<boolean>(false);
+    const scrollContainerRef = useRef<HTMLDivElement | null>(null);
+    const lastRoomIdRef = useRef<string | null>(null);
     const socketRef = useRef<Socket | null>(null);
     const messagesEndRef = useRef<HTMLDivElement | null>(null);
     const selectedRoomIdRef = useRef<string | null>(null);
     const lastMessagesFetchRef = useRef<number | null>(null);
     const typingStopTimeoutRef = useRef<number | null>(null);
+    const typingActiveRef = useRef<Record<string, boolean>>({});
     const attachmentUrlsRef = useRef<Set<string>>(new Set());
 
     const { token, user, logout, updateUser } = useAuth();
@@ -107,25 +115,69 @@ const ChatPage = () => {
         });
     }, []);
 
-    const handleAddAttachments = (files: File[]) => {
-        if (!files.length) return;
-        setComposerAttachments((prev) => {
-            const next = [...prev];
-            const remainingSlots = Math.max(0, 6 - next.length);
-            files.slice(0, remainingSlots).forEach((file) => {
-                const url = URL.createObjectURL(file);
-                attachmentUrlsRef.current.add(url);
-                next.push({
-                    id: createId(),
-                    name: file.name,
-                    size: file.size,
-                    kind: file.type.startsWith("image/") ? "image" : "file",
-                    mime: file.type || "application/octet-stream",
-                    url,
-                });
-            });
-            return next;
+    const fileToBase64 = (file: File): Promise<string> => {
+        return new Promise((resolve, reject) => {
+            const reader = new FileReader();
+            reader.readAsDataURL(file);
+            reader.onload = () => resolve(reader.result as string);
+            reader.onerror = (error) => reject(error);
         });
+    };
+
+    const handleAddAttachments = async (files: File[]) => {
+        if (!files.length) return;
+        
+        setUploadProgress(10);
+        const uploadedItems: AttachmentItem[] = [];
+        
+        try {
+            const remainingSlots = Math.max(0, 6 - composerAttachments.length);
+            const filesToUpload = files.slice(0, remainingSlots);
+            
+            let completed = 0;
+            const total = filesToUpload.length;
+            
+            for (const file of filesToUpload) {
+                const base64 = await fileToBase64(file);
+                
+                const response = await api.post("/upload", {
+                    name: file.name,
+                    mime: file.type || "application/octet-stream",
+                    base64
+                }, {
+                    onUploadProgress: (progressEvent) => {
+                        const fileProgress = progressEvent.total
+                            ? (progressEvent.loaded / progressEvent.total) * 100
+                            : 50;
+                        
+                        const baseProgress = 30 + (completed / total) * 65;
+                        const incrementalProgress = (fileProgress / 100) * (65 / total);
+                        setUploadProgress(Math.min(95, baseProgress + incrementalProgress));
+                    }
+                });
+                
+                if (response.data?.success && response.data?.data) {
+                    const uploaded = response.data.data;
+                    uploadedItems.push({
+                        id: createId(),
+                        name: uploaded.name || file.name,
+                        size: uploaded.size || file.size,
+                        kind: (uploaded.mime || file.type).startsWith("image/") ? "image" : "file",
+                        mime: uploaded.mime || file.type || "application/octet-stream",
+                        url: uploaded.url,
+                    });
+                }
+                completed += 1;
+            }
+            
+            if (uploadedItems.length > 0) {
+                setComposerAttachments((prev) => [...prev, ...uploadedItems]);
+            }
+        } catch (error) {
+            console.error("Error uploading attachments:", error);
+        } finally {
+            setUploadProgress(null);
+        }
     };
 
     const handleRemoveAttachment = (attachmentId: string) => {
@@ -264,6 +316,41 @@ const ChatPage = () => {
         userRef.current = user;
     }, [user]);
 
+    // Build userId -> username mapping from messages
+    useEffect(() => {
+        const mapping: Record<string, string> = {};
+        messages.forEach((msg) => {
+            if (msg.author.id) {
+                mapping[msg.author.id] = msg.author.username;
+            }
+        });
+        setUserIdToUsernameMap(mapping);
+    }, [messages]);
+
+    const stopTyping = useCallback((roomId: string, shouldEmit = true) => {
+        if (typingStopTimeoutRef.current) {
+            window.clearTimeout(typingStopTimeoutRef.current);
+            typingStopTimeoutRef.current = null;
+        }
+        typingActiveRef.current[roomId] = false;
+        if (shouldEmit) {
+            console.debug("[typing] emit typingStop", { roomId, userId: userRef.current?.id });
+            socketRef.current?.emit("typingStop", roomId);
+        }
+    }, []);
+
+    const getTypingUsernamesForRoom = useCallback(
+        (roomId: string | null | undefined) => {
+            if (!roomId) return [];
+            const typingUserIds = Array.from(typingUsersByRoom[roomId] ?? new Set<string>());
+            return typingUserIds
+                .filter((typingUserId) => typingUserId !== userRef.current?.id)
+                .map((typingUserId) => userIdToUsernameMap[typingUserId] ?? `User ${typingUserId.slice(0, 4)}`)
+                .filter(Boolean);
+        },
+        [typingUsersByRoom, userIdToUsernameMap],
+    );
+
     const handleCreateRoom = async () => {
         if (!token) {
             setCreateError("Please sign in to create a room.");
@@ -294,6 +381,24 @@ const ChatPage = () => {
             setCreateError("Unable to create room. Try again.");
         } finally {
             setIsCreatingRoom(false);
+        }
+    };
+
+    const handleCreateDM = async (targetUserId: string) => {
+        try {
+            const response = await roomService.createDM(targetUserId);
+            if (response.success && response.data) {
+                const newDmRoom = response.data;
+                setRooms((prevRooms) => {
+                    const exists = prevRooms.some((r) => r.room.id === newDmRoom.id);
+                    if (exists) return prevRooms;
+                    return [...prevRooms, { room: newDmRoom }];
+                });
+                setSelectedRoom(newDmRoom);
+                setRoomFilter("");
+            }
+        } catch (error) {
+            console.error("Error creating DM room:", error);
         }
     };
 
@@ -407,10 +512,11 @@ const ChatPage = () => {
         setReplyTo(null);
         setMessageInput("");
         clearAttachments();
+        stopTyping(selectedRoom.id, true);
 
         setIsSendingMessage(true);
         try {
-            const response = await messageService.sendMessage(selectedRoom.id, contentToSend);
+            const response = await messageService.sendMessage(selectedRoom.id, contentToSend, composerAttachments);
             const confirmedMessage = syncAvatar({
                 ...response.data,
                 attachments: localMessage.attachments,
@@ -507,7 +613,7 @@ const ChatPage = () => {
                 const response = await messageService.getRoomMessages(selectedRoom.id);
                 console.debug("fetched messages count:", response.data.length, "payload:", response.data);
                 setMessages((prev) => {
-                    const mapped = response.data.map((message) => syncAvatar({ ...message, reactions: [] }));
+                    const mapped = response.data.map((message: any) => syncAvatar({ ...message, reactions: [] }));
                     if (areMessageListsEqual(prev, mapped)) return prev;
                     return mapped;
                 });
@@ -586,53 +692,52 @@ const ChatPage = () => {
             scheduleFlushIncoming();
         });
 
-        const handleTyping = (payload: {
-            roomId?: string;
-            username?: string;
-            user?: { username?: string };
-            isTyping?: boolean;
-        }) => {
-            const username = payload.username || payload.user?.username;
-            if (!username || username === userRef.current?.username) return;
-            if (payload.roomId && payload.roomId !== selectedRoomIdRef.current) return;
-            setTypingUsers((prev) => {
-                if (payload.isTyping === false) {
-                    return prev.filter((value) => value !== username);
-                }
-                return prev.includes(username) ? prev : [...prev, username];
+        const handleUserTyping = (payload: { userId?: string; roomId?: string }) => {
+            console.debug("[typing] receive userTyping", payload);
+            if (!payload.userId || !payload.roomId) return;
+            if (payload.roomId !== selectedRoomIdRef.current) return;
+            if (payload.userId === userRef.current?.id) return;
+            setTypingUsersByRoom((prev) => {
+                const current = new Set(prev[payload.roomId!] ?? new Set<string>());
+                current.add(payload.userId!);
+                return { ...prev, [payload.roomId!]: current };
             });
         };
 
-        const handleTypingStop = (payload: {
-            roomId?: string;
-            username?: string;
-            user?: { username?: string };
-        }) => {
-            const username = payload.username || payload.user?.username;
-            if (!username) return;
-            setTypingUsers((prev) => prev.filter((value) => value !== username));
+        const handleUserStopTyping = (payload: { userId?: string; roomId?: string }) => {
+            console.debug("[typing] receive userStopTyping", payload);
+            if (!payload.userId || !payload.roomId) return;
+            setTypingUsersByRoom((prev) => {
+                const current = new Set(prev[payload.roomId!] ?? new Set<string>());
+                current.delete(payload.userId!);
+                if (current.size === 0) {
+                    const next = { ...prev };
+                    delete next[payload.roomId!];
+                    return next;
+                }
+                return { ...prev, [payload.roomId!]: current };
+            });
         };
 
-        newSocket.on("typing", handleTyping);
-        newSocket.on("userTyping", handleTyping);
-        newSocket.on("typingStart", handleTyping);
-        newSocket.on("typingStop", handleTypingStop);
+        newSocket.on("userTyping", handleUserTyping);
+        newSocket.on("userStopTyping", handleUserStopTyping);
 
         return () => {
             console.log("Cleaning up socket");
+            if (selectedRoomIdRef.current) {
+                stopTyping(selectedRoomIdRef.current, true);
+            }
             newSocket.off("newMessage");
             newSocket.off("onlineUsers");
             newSocket.off("userOnline");
             newSocket.off("userOffline");
-            newSocket.off("typing", handleTyping);
-            newSocket.off("userTyping", handleTyping);
-            newSocket.off("typingStart", handleTyping);
-            newSocket.off("typingStop", handleTypingStop);
+            newSocket.off("userTyping", handleUserTyping);
+            newSocket.off("userStopTyping", handleUserStopTyping);
             releaseSocket();
             setIsConnected(false);
             socketRef.current = null;
         };
-    }, [token]);
+    }, [stopTyping, token]);
 
     useEffect(() => {
         if (!selectedRoom || !socketRef.current) {
@@ -641,14 +746,56 @@ const ChatPage = () => {
         const previousRoomId = selectedRoomIdRef.current;
         if (previousRoomId && previousRoomId !== selectedRoom.id) {
             socketRef.current.emit("leaveRoom", previousRoomId);
+            stopTyping(previousRoomId, true);
         }
         selectedRoomIdRef.current = selectedRoom.id;
         socketRef.current.emit("joinRoom", selectedRoom.id);
-    }, [selectedRoom]);
+    }, [selectedRoom, stopTyping]);
+
+    const handleScroll = () => {
+        const container = scrollContainerRef.current;
+        if (!container) return;
+        const isAtBottom = container.scrollHeight - container.scrollTop - container.clientHeight <= 100;
+        if (isAtBottom) {
+            setShowNewMessagesBanner(false);
+        }
+    };
 
     useEffect(() => {
-        messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
-    }, [messages, selectedRoom]);
+        const container = scrollContainerRef.current;
+        if (!container) return;
+        if (messages.length === 0) return;
+        
+        const isRoomSwitch = lastRoomIdRef.current !== selectedRoom?.id;
+        lastRoomIdRef.current = selectedRoom?.id ?? null;
+        
+        if (isRoomSwitch) {
+            // Instant scroll on room switch
+            container.scrollTop = container.scrollHeight;
+            setShowNewMessagesBanner(false);
+            return;
+        }
+        
+        const lastMessage = messages[messages.length - 1];
+        const isSelf = lastMessage && (
+            (user?.id && lastMessage.author.id === user.id) ||
+            (user?.username && lastMessage.author.username === user.username)
+        );
+        
+        const isNearBottom = container.scrollHeight - container.scrollTop - container.clientHeight <= 120;
+        
+        if (isNearBottom || isSelf) {
+            setTimeout(() => {
+                container.scrollTo({
+                    top: container.scrollHeight,
+                    behavior: "smooth"
+                });
+            }, 50);
+            setShowNewMessagesBanner(false);
+        } else {
+            setShowNewMessagesBanner(true);
+        }
+    }, [messages, selectedRoom, user]);
 
     useEffect(() => {
         console.debug("messages changed, count:", messages.length);
@@ -668,21 +815,30 @@ const ChatPage = () => {
 
     const handleComposerChange = (value: string) => {
         setMessageInput(value);
-        if (!selectedRoom || !socketRef.current || !user?.username) return;
-        socketRef.current.emit("typingStart", {
-            roomId: selectedRoom.id,
-            user: { username: user.username },
-        });
+        if (!selectedRoom || !socketRef.current) return;
+        const roomId = selectedRoom.id;
+        const trimmed = value.trim();
+
+        if (!trimmed) {
+            stopTyping(roomId, true);
+            return;
+        }
+
+        if (!typingActiveRef.current[roomId]) {
+            console.debug("[typing] emit typingStart", { roomId, userId: user?.id });
+            socketRef.current.emit("typingStart", roomId);
+            typingActiveRef.current[roomId] = true;
+        }
+
         if (typingStopTimeoutRef.current) {
             window.clearTimeout(typingStopTimeoutRef.current);
         }
         typingStopTimeoutRef.current = window.setTimeout(() => {
-            socketRef.current?.emit("typingStop", {
-                roomId: selectedRoom.id,
-                user: { username: user.username },
-            });
-        }, 900);
+            stopTyping(roomId, true);
+        }, 1500);
     };
+
+    const activeTypingUsernames = getTypingUsernamesForRoom(selectedRoom?.id);
 
     useEffect(() => {
         const handleKeyDown = (event: KeyboardEvent) => {
@@ -705,13 +861,13 @@ const ChatPage = () => {
 
     return (
         <PageTransition>
-            <div className="relative h-screen overflow-hidden bg-zinc-950 text-zinc-100">
-                <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_18%_12%,rgba(103,232,249,0.045),transparent_28%),radial-gradient(circle_at_82%_0%,rgba(168,85,247,0.04),transparent_24%),linear-gradient(180deg,rgba(255,255,255,0.035),transparent_26%)]" />
-                <div className="pointer-events-none absolute inset-x-10 top-8 h-px bg-linear-to-r from-transparent via-white/10 to-transparent" />
-                <div className="relative grid h-full grid-cols-1 gap-0 p-0 md:grid-cols-[280px_minmax(0,1fr)] md:gap-3 md:p-3 xl:grid-cols-[304px_minmax(0,1fr)]">
+            <div className="relative h-screen overflow-hidden bg-[var(--bg-charcoal)] text-[var(--text-primary)]">
+                <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_50%_0%,rgba(242,242,239,0.02),transparent_50%)]" />
+                <div className="pointer-events-none absolute inset-x-10 top-0 h-px bg-[var(--border-muted)]" />
+                <div className="relative grid h-full grid-cols-1 gap-0 p-0 md:grid-cols-[290px_minmax(0,1fr)] md:gap-2.5 md:p-2.5 xl:grid-cols-[310px_minmax(0,1fr)]">
                     <div className="hidden min-h-0 md:block">
                             {roomsError && (
-                                <div className="mb-2 p-2 text-sm text-red-300">{roomsError}</div>
+                                <div className="mb-2 p-2 text-sm text-red-400">{roomsError}</div>
                             )}
                         <RoomSidebar
                             rooms={rooms}
@@ -725,6 +881,8 @@ const ChatPage = () => {
                             user={user}
                             unreadCounts={unreadCounts}
                             onlineUsersCount={onlineUsers.size}
+                            onlineUsers={onlineUsers}
+                            typingUsersByRoom={typingUsersByRoom}
                             onRoomFilterChange={setRoomFilter}
                             onNewRoomNameChange={setNewRoomName}
                             onCreateRoom={handleCreateRoom}
@@ -741,21 +899,28 @@ const ChatPage = () => {
                             onDeleteRoom={handleDeleteRoom}
                             onAvatarChange={handleAvatarChange}
                             onLogout={handleLogout}
+                            onCreateDM={handleCreateDM}
                         />
                     </div>
 
-                    <main className="flex min-h-0 min-w-0 flex-col overflow-hidden border-white/8 bg-[linear-gradient(180deg,rgba(24,24,27,0.72),rgba(9,9,11,0.9)_42%,rgba(9,9,11,0.96))] shadow-2xl shadow-black/35 md:rounded-3xl md:border xl:rounded-[1.7rem]">
+                    <main className="flex min-h-0 min-w-0 flex-col overflow-hidden border-[var(--border-muted)] bg-gradient-to-b from-[var(--bg-graphite)] to-[rgba(18,18,17,0.98)] shadow-[0_20px_50px_rgba(0,0,0,0.55),inset_0_1px_0_rgba(255,255,255,0.015)] md:rounded-[1.25rem] md:border">
                         <ChatHeader
                             room={selectedRoom}
                             isConnected={isConnected}
                             onOpenRooms={() => setIsMobileRoomsOpen(true)}
+                            currentUser={user}
+                            onlineUsers={onlineUsers}
                         />
-                        <section className="relative min-h-0 flex-1 overflow-y-auto bg-[radial-gradient(circle_at_50%_0%,rgba(103,232,249,0.025),transparent_28%),linear-gradient(180deg,rgba(255,255,255,0.012),transparent_24%)]">
-                            <div className="pointer-events-none absolute inset-0 opacity-[0.055] bg-[linear-gradient(rgba(255,255,255,0.04)_1px,transparent_1px),linear-gradient(90deg,rgba(255,255,255,0.035)_1px,transparent_1px)] bg-size-[56px_56px]" />
+                        <section 
+                            ref={scrollContainerRef}
+                            onScroll={handleScroll}
+                            className="relative min-h-0 flex-1 overflow-y-auto bg-[radial-gradient(circle_at_50%_0%,rgba(242,242,239,0.018),transparent_55%)]"
+                        >
+                            <div className="pointer-events-none absolute inset-0 opacity-[0.02] bg-[linear-gradient(rgba(255,255,255,0.04)_1px,transparent_1px),linear-gradient(90deg,rgba(255,255,255,0.035)_1px,transparent_1px)] bg-size-[56px_56px]" />
                             {selectedRoom ? (
                                 <>
                                         {messagesError && (
-                                            <div className="p-3 text-sm text-red-300">
+                                            <div className="p-3 text-sm text-red-400">
                                                 {messagesError}
                                             </div>
                                         )}
@@ -819,23 +984,50 @@ const ChatPage = () => {
                                                 }),
                                             );
                                         }}
-                                        typingUsers={typingUsers}
+                                        typingUsers={activeTypingUsernames}
                                     />
                                     <div ref={messagesEndRef} />
+                                    {showNewMessagesBanner && (
+                                        <div className="sticky bottom-4 left-1/2 -translate-x-1/2 z-30 w-max mx-auto shadow-lg">
+                                            <button
+                                                type="button"
+                                                onClick={() => {
+                                                    const container = scrollContainerRef.current;
+                                                    if (container) {
+                                                        container.scrollTo({
+                                                            top: container.scrollHeight,
+                                                            behavior: "smooth"
+                                                        });
+                                                    }
+                                                    setShowNewMessagesBanner(false);
+                                                }}
+                                                className="flex items-center gap-1.5 rounded-full border border-[rgba(255,255,255,0.08)] bg-[rgba(22,22,21,0.85)] px-3 py-1.5 text-[10.5px] font-medium text-[var(--accent-teal)] shadow-[0_8px_32px_rgba(0,0,0,0.5)] backdrop-blur-md transition-all duration-200 hover:bg-[rgba(22,22,21,0.95)] hover:scale-103 active:scale-98 cursor-pointer select-none"
+                                            >
+                                                New messages <span className="text-[11px]">↓</span>
+                                            </button>
+                                        </div>
+                                    )}
                                 </>
                             ) : (
-                                <div className="flex h-full items-center justify-center p-6 text-center">
-                                    <div className="max-w-sm">
-                                        <h1 className="text-2xl font-semibold tracking-tight text-white">
-                                            Choose a room
+                                <div className="relative flex h-full items-center justify-center p-6 text-center">
+                                    <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_50%_45%,rgba(242,242,239,0.015),transparent_45%)]" />
+                                    <div className="relative max-w-sm">
+                                        <div className="mx-auto mb-4.5 flex h-12 w-12 items-center justify-center rounded-full border border-[var(--border-muted)] bg-[var(--bg-charcoal)] shadow-[0_8px_20px_rgba(0,0,0,0.3)]">
+                                            <svg viewBox="0 0 24 24" className="h-5 w-5 text-[var(--text-secondary)]" fill="none" stroke="currentColor" strokeWidth="1.5">
+                                                <path strokeLinecap="round" strokeLinejoin="round" d="M8.625 12a.375.375 0 1 1-.75 0 .375.375 0 0 1 .75 0Zm0 0H8.25m4.125 0a.375.375 0 1 1-.75 0 .375.375 0 0 1 .75 0Zm0 0H12m4.125 0a.375.375 0 1 1-.75 0 .375.375 0 0 1 .75 0Zm0 0h-.375M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 0 1-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8Z" />
+                                            </svg>
+                                        </div>
+                                        <h1 className="text-sm font-medium tracking-tight text-[var(--text-primary)]">
+                                            Select a conversation
                                         </h1>
-                                        <p className="mt-3 text-sm leading-6 text-zinc-500">
-                                            Select an existing room or create a new one to begin realtime messaging.
+                                        <p className="mt-2 text-xs leading-relaxed text-[var(--text-secondary)]">
+                                            Choose an active room from the sidebar or create a new space to connect instantly.
                                         </p>
                                     </div>
                                 </div>
                             )}
                         </section>
+                        <TypingIndicator typingUsernames={activeTypingUsernames} />
                         <MessageComposer
                             value={messageInput}
                             disabled={!selectedRoom}
@@ -852,6 +1044,7 @@ const ChatPage = () => {
                                 setEditingMessage(null);
                                 setMessageInput("");
                             }}
+                            uploadProgress={uploadProgress}
                         />
                     </main>
                 </div>
@@ -884,6 +1077,8 @@ const ChatPage = () => {
                                     user={user}
                                     unreadCounts={unreadCounts}
                                     onlineUsersCount={onlineUsers.size}
+                                    onlineUsers={onlineUsers}
+                                    typingUsersByRoom={typingUsersByRoom}
                                     onRoomFilterChange={setRoomFilter}
                                     onNewRoomNameChange={setNewRoomName}
                                     onCreateRoom={handleCreateRoom}
@@ -900,6 +1095,7 @@ const ChatPage = () => {
                                     onDeleteRoom={handleDeleteRoom}
                                     onAvatarChange={handleAvatarChange}
                                     onLogout={handleLogout}
+                                    onCreateDM={handleCreateDM}
                                 />
                             </motion.div>
                         </motion.div>

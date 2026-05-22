@@ -52,8 +52,8 @@ export function ProfileMenu({
             toggleMenu();
           }
         }}
-        whileHover={{ borderColor: "rgba(255, 255, 255, 0.12)", backgroundColor: "rgba(255, 255, 255, 0.05)" }}
-        className="flex w-full items-center gap-2.5 rounded-xl border border-white/8 bg-white/3.5 p-2.5 text-left shadow-lg shadow-black/20 transition-all cursor-pointer"
+        whileHover={{ borderColor: "rgba(242, 242, 239, 0.12)", backgroundColor: "rgba(242, 242, 239, 0.04)" }}
+        className="flex w-full items-center gap-2.5 rounded-xl border border-[var(--border-muted)] bg-[rgba(242,242,239,0.02)] p-2.5 text-left shadow-[inset_0_1px_0_rgba(255,255,255,0.01),0_8px_24px_rgba(0,0,0,0.25)] transition-all cursor-pointer select-none"
         aria-expanded={isOpen}
       >
         <div className="relative">
@@ -72,51 +72,52 @@ export function ProfileMenu({
               event.stopPropagation();
               fileInputRef.current?.click();
             }}
-            className="absolute -bottom-0.5 -right-0.5 flex h-5 w-5 items-center justify-center rounded-full border border-white/10 bg-zinc-950/90 text-zinc-400 shadow-lg transition hover:bg-white/10 hover:text-white"
+            className="absolute -bottom-0.5 -right-0.5 flex h-4.5 w-4.5 items-center justify-center rounded-full border border-[var(--border-muted)] bg-neutral-900 text-[var(--text-muted)] shadow-md transition hover:bg-neutral-800 hover:text-[var(--text-secondary)]"
             aria-label="Upload avatar"
           >
             <Camera className="h-2.5 w-2.5" />
           </motion.button>
         </div>
         <div className="min-w-0 flex-1">
-          <p className="truncate text-xs font-semibold text-white">
+          <p className="truncate text-[11px] font-medium tracking-tight text-[var(--text-primary)]">
             {user?.username || "Pyro user"}
           </p>
-          <p className="truncate text-[10px] text-zinc-600">
+          <p className="truncate text-[9.5px] text-[var(--text-muted)] font-normal leading-none mt-0.5">
             {user?.email || "Signed in"}
           </p>
         </div>
       </motion.div>
-
+ 
       <AnimatePresence>
         {isOpen && (
           <motion.div
-            initial={{ opacity: 0, y: -8, scale: 0.96 }}
+            initial={{ opacity: 0, y: -6, scale: 0.97 }}
             animate={{ opacity: 1, y: 0, scale: 1 }}
-            exit={{ opacity: 0, y: -8, scale: 0.96 }}
-            transition={{ duration: 0.15 }}
-            className="absolute bottom-[calc(100%+8px)] left-0 right-0 overflow-hidden rounded-lg border border-white/8 bg-zinc-950/95 p-1 shadow-2xl shadow-black/40 backdrop-blur-xl"
+            exit={{ opacity: 0, y: -6, scale: 0.97 }}
+            transition={{ duration: 0.15, ease: "easeOut" }}
+            className="absolute bottom-[calc(100%+6px)] left-0 right-0 overflow-hidden rounded-xl border border-[rgba(255,255,255,0.08)] bg-[rgba(22,22,21,0.92)] p-1.5 shadow-[0_16px_40px_rgba(0,0,0,0.55),inset_0_1px_0_rgba(255,255,255,0.02)] backdrop-blur-2xl"
           >
             <motion.button
-              whileHover={{ backgroundColor: "rgba(255, 255, 255, 0.05)" }}
+              whileHover={{ backgroundColor: "rgba(255, 255, 255, 0.045)", color: "var(--text-primary)" }}
               type="button"
               onClick={() => fileInputRef.current?.click()}
-              className="flex w-full items-center gap-2 rounded-lg px-2.5 py-2 text-xs text-zinc-300 transition-colors"
+              className="flex w-full items-center gap-2 rounded-lg px-2.5 py-1.5 text-[11px] font-medium tracking-tight text-[var(--text-secondary)] transition-all duration-150"
             >
-              <Camera className="h-3.5 w-3.5 text-zinc-600" />
+              <Camera className="h-3.5 w-3.5 text-[var(--text-muted)]" />
               Change avatar
             </motion.button>
-            <div className="flex items-center gap-2 rounded-lg px-2.5 py-2 text-xs text-zinc-600">
-              <UserRound className="h-3.5 w-3.5" />
+            <div className="flex items-center gap-2 rounded-lg px-2.5 py-1.5 text-[11px] font-medium tracking-tight text-[var(--text-muted)] select-none">
+              <UserRound className="h-3.5 w-3.5 text-[var(--text-muted)]" />
               Profile
             </div>
+            <div className="my-1 h-px bg-[var(--border-muted)]" />
             <motion.button
-              whileHover={{ backgroundColor: "rgba(239, 68, 68, 0.08)" }}
+              whileHover={{ backgroundColor: "rgba(239, 68, 68, 0.08)", color: "#f87171" }}
               type="button"
               onClick={onLogout}
-              className="flex w-full items-center gap-2 rounded-lg px-2.5 py-2 text-xs text-red-300 transition-colors"
+              className="flex w-full items-center gap-2 rounded-lg px-2.5 py-1.5 text-[11px] font-medium tracking-tight text-red-400/90 transition-all duration-150"
             >
-              <LogOut className="h-3.5 w-3.5" />
+              <LogOut className="h-3.5 w-3.5 text-red-400/70" />
               Logout
             </motion.button>
           </motion.div>

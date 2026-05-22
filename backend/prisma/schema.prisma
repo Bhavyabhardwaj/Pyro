@@ -37,17 +37,35 @@ model Message {
   roomId String
   room   Room     @relation(fields: [roomId], references: [id], onDelete: Cascade)
 
+  attachments Attachment[]
+
   @@index([roomId, createdAt])
 }
 
 model Room {
   id        String   @id @default(cuid())
   name      String    
+  isDM      Boolean  @default(false)
+  lastMessageId String?
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
   messages Message[]
   roomMembers RoomMember[]
+}
+
+model Attachment {
+  id        String   @id @default(cuid())
+
+  url       String
+  fileName  String
+  mimeType  String
+  fileSize  Int
+
+  messageId String
+  message   Message @relation(fields: [messageId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
 }
 
 model RoomMember {

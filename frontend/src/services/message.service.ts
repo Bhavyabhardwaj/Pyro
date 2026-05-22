@@ -11,8 +11,8 @@ export const messageService = {
         pending.set(key, p);
         return p;
     },
-    async sendMessage(roomId: string, content: string) {
-        const response = await api.post<ApiResponse<Message>>(`/rooms/${roomId}/messages`, { content });
+    async sendMessage(roomId: string, content: string, attachments?: any[]) {
+        const response = await api.post<ApiResponse<Message>>(`/rooms/${roomId}/messages`, { content, attachments });
         return response.data;
     }
 }

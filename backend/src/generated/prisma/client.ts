@@ -55,6 +55,11 @@ export type Message = Prisma.MessageModel
  */
 export type Room = Prisma.RoomModel
 /**
+ * Model Attachment
+ * 
+ */
+export type Attachment = Prisma.AttachmentModel
+/**
  * Model RoomMember
  * 
  */

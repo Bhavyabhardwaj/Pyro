@@ -18,4 +18,8 @@ export const authService = {
         const response = await api.patch<ApiResponse<{ user: User }>>('/auth/avatar', data);
         return response.data;
     },
+    async getUsers() {
+        const response = await api.get<ApiResponse<User[]>>('/auth/users');
+        return response.data;
+    },
 }

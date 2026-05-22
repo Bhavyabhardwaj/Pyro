@@ -8,8 +8,9 @@ export const messageController = {
             const userId = (req as any).user?.userId;
             const roomId = req.params.roomId;
             const content = req.body.content;
+            const attachments = req.body.attachments;
 
-            const message = await messageService.sendMessage({ roomId, userId, content });
+            const message = await messageService.sendMessage({ roomId, userId, content, attachments });
             return responseUtils.success(res, message, "Message sent successfully", 201);
             
         } catch (error) {
