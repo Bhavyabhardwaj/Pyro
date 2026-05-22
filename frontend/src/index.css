@@ -1,9 +1,10 @@
-@import url("https://fonts.googleapis.com/css2?family=Sora:wght@300;400;500;600;700&display=swap");
+@import url("https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&family=Inter+Tight:wght@400;500;600&display=swap");
 @import "tailwindcss";
 
 :root {
   color-scheme: dark;
-  --font-sans: "Sora", "Segoe UI", system-ui, sans-serif;
+  --font-sans: "Inter", "Segoe UI", system-ui, sans-serif;
+  --font-heading: "Inter Tight", "Inter", system-ui, sans-serif;
   font-family: var(--font-sans);
   
   /* System Warm Charcoal Palette */

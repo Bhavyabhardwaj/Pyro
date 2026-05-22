@@ -1,178 +1,142 @@
-import { motion } from "framer-motion";
-import { CheckCheck, Hash, Lock, Radio, Send, Users } from "lucide-react";
+import { CheckCheck, Hash, Lock, Send, Users } from "lucide-react";
 import { Surface } from "../ui/surface";
 
 const rooms = [
-  { name: "design-review", count: 12 },
-  { name: "engineering", count: 6 },
-  { name: "launch-room", count: 3 },
+  { name: "design-review", count: 12, active: true },
+  { name: "engineering", count: 6, active: false },
+  { name: "launch-room", count: 3, active: false },
 ];
+
 const messages = [
   {
     name: "Aarav",
-    tone: "bg-cyan-300",
-    text: "Shipping the composer polish. The hover states feel much tighter now.",
-    time: "09:41",
+    initials: "A",
+    avatarBg: "bg-[#1e1e1d] text-[#a8a8a2]",
+    text: "Shipping the composer polish. Hover states feel tighter now.",
+    time: "9:41",
+    wide: false,
   },
   {
     name: "Mira",
-    tone: "bg-violet-300",
-    text: "Room sync landed instantly on my side.",
-    time: "09:42",
+    initials: "M",
+    avatarBg: "bg-[#252524] text-[#8a8a84]",
+    text: "Room sync landed instantly on my side — no delay at all.",
+    time: "9:42",
+    wide: true,
   },
   {
     name: "Dev",
-    tone: "bg-emerald-300",
-    text: "Auth guard and socket join are stable.",
-    time: "09:43",
+    initials: "D",
+    avatarBg: "bg-[#1a1a19] text-[#6f6f69]",
+    text: "Auth guard stable.",
+    time: "9:43",
+    wide: false,
   },
 ];
 
 export function ChatPreview() {
   return (
-    <Surface className="relative overflow-hidden p-2.5 shadow-[0_32px_120px_rgba(0,0,0,0.55)]">
-      <motion.div
-        className="absolute -right-24 -top-24 h-60 w-60 rounded-full bg-cyan-300/10 blur-3xl"
-        animate={{ opacity: [0.45, 0.85, 0.45], scale: [1, 1.08, 1] }}
-        transition={{ duration: 6, repeat: Infinity, ease: "easeInOut" }}
-      />
-      <div className="absolute inset-x-20 top-0 h-px bg-gradient-to-r from-transparent via-cyan-200/60 to-transparent" />
-      <div className="grid min-h-[438px] grid-cols-[106px_1fr] overflow-hidden rounded-[1.35rem] border border-white/[0.08] bg-zinc-950/90 sm:grid-cols-[174px_1fr]">
-        <aside className="border-r border-white/[0.08] bg-white/[0.025] p-3">
-          <div className="mb-5 flex items-center gap-2">
-            <div className="h-2.5 w-2.5 rounded-full bg-red-400/80" />
-            <div className="h-2.5 w-2.5 rounded-full bg-amber-300/80" />
-            <div className="h-2.5 w-2.5 rounded-full bg-emerald-300/80" />
+    <Surface className="relative overflow-hidden rounded-2xl p-[1px] shadow-[0_20px_70px_rgba(0,0,0,0.6),0_4px_16px_rgba(0,0,0,0.4)] bg-gradient-to-b from-[rgba(242,242,239,0.04)] to-[rgba(242,242,239,0.01)]">
+      {/* Inner container */}
+      <div className="grid min-h-[400px] grid-cols-[108px_1fr] overflow-hidden rounded-[15px] bg-[var(--bg-charcoal)] sm:grid-cols-[172px_1fr]">
+        
+        {/* Sidebar */}
+        <aside className="border-r border-[var(--border-muted)] bg-[rgba(242,242,239,0.008)] p-2.5 flex flex-col">
+          <div className="mb-3 flex items-center gap-1.5 px-1">
+            <div className="h-[7px] w-[7px] rounded-full bg-[#ff5f57]/60" />
+            <div className="h-[7px] w-[7px] rounded-full bg-[#febc2e]/50" />
+            <div className="h-[7px] w-[7px] rounded-full bg-[#28c840]/50" />
           </div>
 
-          <div className="mb-4 hidden rounded-2xl border border-white/[0.08] bg-zinc-950/70 p-3 sm:block">
-            <div className="flex items-center gap-2 text-xs font-medium text-white">
-              <Users className="h-3.5 w-3.5 text-cyan-200" />
+          <div className="mb-3 hidden rounded-lg border border-[var(--border-muted)] bg-[rgba(17,17,16,0.4)] p-2 sm:block">
+            <div className="flex items-center gap-1.5 text-[10px] font-medium text-[var(--text-primary)]">
+              <Users className="h-2.5 w-2.5 text-[var(--text-muted)]" />
               Pyro Team
             </div>
-            <div className="mt-3 h-1.5 rounded-full bg-white/[0.06]">
-              <motion.div
-                initial={{ width: 0 }}
-                animate={{ width: "72%" }}
-                transition={{ delay: 0.45, duration: 0.8 }}
-                className="h-full rounded-full bg-cyan-200/80"
-              />
-            </div>
+            <div className="mt-1.5 text-[8px] text-[var(--text-muted)]">3 online</div>
           </div>
 
-          <div className="space-y-2">
-            {rooms.map((room, index) => (
-              <motion.div
+          <div className="space-y-0.5 flex-1">
+            {rooms.map((room) => (
+              <div
                 key={room.name}
-                initial={{ opacity: 0, x: -10 }}
-                animate={
-                  index === 0
-                    ? {
-                        opacity: 1,
-                        x: 0,
-                        boxShadow: [
-                          "0 0 0 rgba(103,232,249,0)",
-                          "0 0 34px rgba(103,232,249,0.12)",
-                          "0 0 0 rgba(103,232,249,0)",
-                        ],
-                      }
-                    : { opacity: 1, x: 0 }
-                }
-                transition={
-                  index === 0
-                    ? { duration: 3.5, repeat: Infinity }
-                    : { delay: 0.15 + index * 0.08 }
-                }
                 className={
-                  index === 0
-                    ? "flex items-center gap-2 rounded-xl border border-white/10 bg-white/[0.08] px-3 py-2 text-xs text-white"
-                    : "flex items-center gap-2 rounded-xl px-3 py-2 text-xs text-zinc-500"
+                  room.active
+                    ? "flex items-center gap-1.5 rounded-md border border-[rgba(242,242,239,0.06)] bg-[rgba(242,242,239,0.025)] px-2 py-[5px] text-[10px] text-[var(--text-primary)]"
+                    : "flex items-center gap-1.5 rounded-md px-2 py-[5px] text-[10px] text-[var(--text-muted)] transition-colors hover:text-[var(--text-secondary)]"
                 }
               >
-                <Hash className="h-3.5 w-3.5" />
+                <Hash className="h-2.5 w-2.5 shrink-0" />
                 <span className="hidden truncate sm:block">{room.name}</span>
-                <span className="ml-auto hidden text-[10px] text-zinc-600 sm:block">
-                  {room.count}
-                </span>
-              </motion.div>
+                {room.active && (
+                  <span className="ml-auto hidden text-[8px] tabular-nums text-[var(--text-muted)] sm:block">
+                    {room.count}
+                  </span>
+                )}
+              </div>
             ))}
           </div>
         </aside>
 
+        {/* Chat Panel */}
         <main className="flex min-w-0 flex-col">
-          <div className="flex items-center justify-between border-b border-white/[0.08] px-4 py-3">
+          {/* Header */}
+          <div className="flex items-center justify-between border-b border-[var(--border-muted)] px-3.5 py-2">
             <div>
-              <div className="flex items-center gap-2 text-sm font-medium text-white">
-                <Hash className="h-4 w-4 text-zinc-500" />
+              <div className="flex items-center gap-1.5 text-[11px] font-medium text-[var(--text-primary)]">
+                <Hash className="h-3 w-3 text-[var(--text-muted)]" />
                 design-review
               </div>
-              <p className="mt-1 text-xs text-zinc-500">
-                8 online, synced live
+              <p className="mt-0.5 text-[9px] text-[var(--text-muted)]">
+                8 online
               </p>
             </div>
-            <div className="flex items-center gap-2 rounded-full border border-emerald-300/20 bg-emerald-300/10 px-3 py-1 text-xs text-emerald-200">
-              <Radio className="h-3.5 w-3.5" />
-              Live
+            <div className="flex items-center gap-1 text-[9px] text-[var(--text-muted)]">
+              <span className="h-[5px] w-[5px] rounded-full bg-emerald-500/60" />
+              live
             </div>
           </div>
 
-          <div className="flex-1 space-y-4 px-4 py-5">
-            {messages.map((message, index) => (
-              <motion.div
-                key={message.name}
-                initial={{ opacity: 0, y: 18 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: 0.35 + index * 0.12 }}
-                className="flex gap-3"
-              >
-                <div
-                  className={`mt-1 h-8 w-8 shrink-0 rounded-xl ${message.tone}`}
-                />
-                <div className="min-w-0">
-                  <div className="flex items-baseline gap-2">
-                    <span className="text-sm font-medium text-white">
+          {/* Messages */}
+          <div className="flex-1 space-y-2.5 px-3.5 py-3.5">
+            {messages.map((message) => (
+              <div key={message.name} className="flex gap-2">
+                <div className={`mt-0.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-md text-[9px] font-medium ${message.avatarBg}`}>
+                  {message.initials}
+                </div>
+                <div className={`min-w-0 ${message.wide ? "max-w-[88%]" : "max-w-[72%]"}`}>
+                  <div className="flex items-baseline gap-1.5">
+                    <span className="text-[10.5px] font-medium text-[var(--text-primary)]">
                       {message.name}
                     </span>
-                    <span className="text-xs text-zinc-600">
+                    <span className="text-[8px] tabular-nums text-[#4a4a45]">
                       {message.time}
                     </span>
                   </div>
-                  <p className="mt-1 rounded-2xl rounded-tl-md border border-white/[0.08] bg-white/[0.052] px-4 py-3 text-sm leading-6 text-zinc-300 shadow-lg shadow-black/15">
+                  <p className="mt-0.5 rounded-lg rounded-tl-sm border border-[rgba(242,242,239,0.03)] bg-[rgba(242,242,239,0.012)] px-2.5 py-1.5 text-[10.5px] leading-[1.55] text-[var(--text-secondary)]">
                     {message.text}
                   </p>
                 </div>
-              </motion.div>
+              </div>
             ))}
-            <motion.div
-              initial={{ opacity: 0, y: 12 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: 0.82 }}
-              className="ml-11 flex items-center gap-2 text-xs text-zinc-600"
-            >
-              <CheckCheck className="h-3.5 w-3.5 text-emerald-200" />
-              delivered to 8 online members
-            </motion.div>
-            <motion.div
-              initial={{ opacity: 0, y: 10 }}
-              animate={{ opacity: [0, 1, 1, 0], y: [10, 0, 0, 4] }}
-              transition={{
-                delay: 1.2,
-                duration: 4.5,
-                repeat: Infinity,
-                repeatDelay: 1.2,
-              }}
-              className="ml-11 inline-flex items-center gap-1.5 rounded-full border border-white/[0.08] bg-white/[0.04] px-3 py-1.5 text-xs text-zinc-500"
-            >
-              <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-cyan-200" />
+            
+            <div className="ml-8 flex items-center gap-1.5 text-[9px] text-[#4a4a45]">
+              <CheckCheck className="h-2.5 w-2.5" />
+              delivered
+            </div>
+            
+            <div className="ml-8 inline-flex items-center gap-1 rounded-full border border-[var(--border-muted)] bg-white/[0.01] px-2 py-[3px] text-[9px] text-[#4a4a45]">
+              <span className="h-1 w-1 animate-pulse rounded-full bg-[var(--text-muted)]" />
               Mira is typing
-            </motion.div>
+            </div>
           </div>
 
-          <div className="border-t border-white/[0.08] p-3">
-            <div className="flex items-center gap-3 rounded-2xl border border-white/[0.08] bg-zinc-900/80 px-4 py-3 text-sm text-zinc-500">
-              <Lock className="h-4 w-4" />
+          {/* Composer */}
+          <div className="border-t border-[var(--border-muted)] p-2.5">
+            <div className="flex items-center gap-2 rounded-lg border border-[var(--border-muted)] bg-[rgba(17,17,16,0.35)] px-2.5 py-1.5 text-[10px] text-[#4a4a45]">
+              <Lock className="h-3 w-3" />
               Message #design-review
-              <Send className="ml-auto h-4 w-4 text-zinc-300" />
+              <Send className="ml-auto h-3 w-3" />
             </div>
           </div>
         </main>

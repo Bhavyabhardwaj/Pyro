@@ -1,43 +1,42 @@
 import { Link } from "react-router-dom";
-import { ArrowRight } from "lucide-react";
-import { Button } from "../ui/button";
 import { PyroMark } from "../ui/surface";
 
 export function LandingNavbar() {
   return (
-    <header className="sticky top-0 z-50 border-b border-white/[0.08] bg-zinc-950/75 backdrop-blur-xl">
-      <nav className="mx-auto flex h-16 max-w-7xl items-center justify-between px-4 sm:px-6 lg:px-8">
-        <Link to="/" className="flex items-center gap-3">
+    <header className="sticky top-0 z-50 border-b border-[var(--border-muted)] bg-[rgba(17,17,16,0.7)] backdrop-blur-xl">
+      <nav className="mx-auto flex h-14 max-w-5xl items-center justify-between px-6">
+        <Link to="/" className="flex items-center gap-2">
           <PyroMark />
-          <span className="text-sm font-semibold tracking-wide text-white">
+          <span
+            className="text-[13px] font-medium tracking-[-0.02em] text-[var(--text-primary)]"
+            style={{ fontFamily: "var(--font-heading)" }}
+          >
             Pyro
           </span>
         </Link>
 
-        <div className="hidden items-center gap-8 text-sm text-zinc-400 md:flex">
-          <a href="#features" className="transition-colors hover:text-white">
+        <div className="flex items-center gap-6 text-[11px] font-normal tracking-[-0.005em] text-[var(--text-muted)]">
+          <a href="#features" className="transition-colors hover:text-[var(--text-primary)]">
             Features
           </a>
-          <a href="#realtime" className="transition-colors hover:text-white">
-            Realtime
-          </a>
-          <a href="#developers" className="transition-colors hover:text-white">
+          <a href="#developers" className="transition-colors hover:text-[var(--text-primary)]">
             Developers
           </a>
         </div>
 
-        <div className="flex items-center gap-2">
-          <Button asChild variant="ghost" size="sm">
-            <Link to="/login">Login</Link>
-          </Button>
-          <Button asChild size="sm" className="hidden sm:inline-flex">
-            <Link to="/register">
-              Start
-              <ArrowRight className="h-4 w-4" />
-            </Link>
-          </Button>
+        <div className="flex items-center gap-4">
+          <Link to="/login" className="text-[11px] font-normal text-[var(--text-muted)] transition-colors hover:text-[var(--text-primary)]">
+            Sign In
+          </Link>
+          <Link 
+            to="/register" 
+            className="rounded-full bg-[var(--text-primary)] px-3.5 py-1.5 text-[11px] font-medium tracking-tight text-[var(--bg-charcoal)] transition duration-150 hover:bg-neutral-200"
+          >
+            Open App
+          </Link>
         </div>
       </nav>
     </header>
   );
 }
+
