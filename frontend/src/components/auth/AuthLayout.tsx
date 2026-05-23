@@ -1,7 +1,6 @@
 import type { ReactNode } from "react";
 import { Link } from "react-router-dom";
 import { motion } from "framer-motion";
-import { Activity, LockKeyhole, MessageCircle } from "lucide-react";
 import { PageTransition } from "../ui/PageTransition";
 import { PyroMark } from "../ui/surface";
 import { AuthWorkspacePreview } from "./AuthWorkspacePreview";
@@ -19,80 +18,113 @@ export function AuthLayout({
 }) {
   return (
     <PageTransition>
-      <main className="grid min-h-screen bg-zinc-950 text-zinc-100 lg:grid-cols-[1.08fr_0.92fr]">
-        <section className="relative hidden overflow-hidden border-r border-white/[0.08] lg:block">
-          <div className="absolute inset-0 bg-[radial-gradient(circle_at_30%_20%,rgba(34,211,238,0.16),transparent_34%),linear-gradient(180deg,rgba(255,255,255,0.05),transparent_40%)]" />
+      <main className="grid h-screen overflow-hidden bg-[#111110] text-[#f2f2ef] antialiased lg:grid-cols-[1.12fr_0.88fr] select-none selection:bg-white/10 selection:text-white">
+        
+        {/* Left Section — Brand and Atmospheric Pitch */}
+        <section className="relative hidden overflow-hidden border-r border-white/[0.04] lg:block h-full">
+          
+          {/* Subtle desaturated blue-gray radial highlight matching landing page */}
+          <div className="absolute inset-0 bg-[radial-gradient(circle_at_30%_20%,rgba(141,162,170,0.06),transparent_40%),radial-gradient(circle_at_70%_60%,rgba(255,255,255,0.005),transparent_50%),linear-gradient(180deg,rgba(255,255,255,0.012),transparent_45%)] pointer-events-none" />
+          
           <div className="relative flex h-full flex-col justify-between p-10">
-            <Link to="/" className="flex items-center gap-3">
-              <PyroMark />
-              <span className="font-semibold text-white">Pyro</span>
+            
+            {/* Logo Brand Lockup */}
+            <Link to="/" className="flex items-center gap-2.5 group self-start">
+              <PyroMark className="transition-transform duration-500 group-hover:scale-[1.02]" />
+              <span 
+                className="text-[14.5px] font-semibold tracking-[-0.03em] text-[#e8e8e5] transition-colors duration-300 group-hover:text-white"
+                style={{ fontFamily: "var(--font-heading)" }}
+              >
+                Pyro
+              </span>
             </Link>
 
+            {/* Content pitch with Satoshi headings & clean styling */}
             <motion.div
-              initial={{ opacity: 0, y: 16 }}
+              initial={{ opacity: 0, y: 10 }}
               animate={{ opacity: 1, y: 0 }}
-              className="max-w-xl"
+              transition={{ duration: 0.6, ease: [0.16, 1, 0.3, 1] }}
+              className="max-w-[450px] w-full mt-4 mb-8"
             >
-              <p className="text-sm font-medium text-cyan-200">
-                Realtime communication
+              <p className="text-[9px] font-mono tracking-[0.12em] text-[#8da2aa] uppercase">
+                REAL-TIME COMMUNICATION
               </p>
-              <h1 className="mt-4 text-5xl font-semibold tracking-tight text-white">
+              
+              <h1 
+                className="mt-3.5 text-2xl sm:text-[32px] font-medium tracking-[-0.035em] leading-[1.1] text-[#e8e8e5]"
+                style={{ fontFamily: "var(--font-heading)" }}
+              >
                 Step into the room where work starts moving.
               </h1>
-              <div className="mt-7 grid gap-3 sm:grid-cols-3 lg:grid-cols-1 xl:grid-cols-3">
-                {[
-                  [MessageCircle, "Room-based conversations"],
-                  [Activity, "Live Socket.IO updates"],
-                  [LockKeyhole, "JWT protected workspace"],
-                ].map(([Icon, label]) => (
-                  <div
-                    key={label as string}
-                    className="flex items-center gap-3 rounded-2xl border border-white/[0.08] bg-white/[0.04] p-4 text-sm text-zinc-300"
-                  >
-                    <Icon className="h-4 w-4 text-zinc-400" />
-                    {label as string}
-                  </div>
-                ))}
+
+              <p className="mt-3 max-w-[350px] text-[13px] leading-[1.65] text-[#8a8a84] font-light">
+                Focused conversations, direct messaging, and shared context.
+              </p>
+
+              {/* Workspace Mockup Card */}
+              <div className="mt-5.5">
+                <AuthWorkspacePreview />
               </div>
-              <AuthWorkspacePreview />
             </motion.div>
 
-            <p className="text-xs text-zinc-600">
-              Realtime collaboration without the noise.
+            {/* Clean bottom brand note */}
+            <p className="text-[9px] text-[#4d4d48] font-mono tracking-[0.16em] uppercase select-none opacity-85">
+              REAL-TIME COLLABORATION WITHOUT THE NOISE.
             </p>
           </div>
         </section>
 
-        <section className="flex items-center justify-center px-4 py-10 sm:px-6">
-          <div className="w-full max-w-md">
-            <Link to="/" className="mb-10 flex items-center gap-3 lg:hidden">
-              <PyroMark />
-              <span className="font-semibold text-white">Pyro</span>
+        {/* Right Section — Interactive Auth Form Card */}
+        <section className="flex items-center justify-center px-4 py-8 sm:px-6 relative z-10 h-full overflow-y-auto">
+          
+          {/* Subtle background glow for mobile/right side */}
+          <div className="absolute inset-0 bg-[radial-gradient(circle_at_50%_30%,rgba(255,255,255,0.01),transparent_60%)] pointer-events-none select-none lg:hidden" />
+          
+          <div className="w-full max-w-[390px] py-6">
+            
+            {/* Mobile Header Logo */}
+            <Link to="/" className="mb-6 flex items-center gap-3 lg:hidden group">
+              <PyroMark className="transition-transform duration-500 group-hover:scale-[1.02]" />
+              <span 
+                className="text-[14.5px] font-semibold tracking-[-0.03em] text-[#e8e8e5] transition-colors duration-300 group-hover:text-white"
+                style={{ fontFamily: "var(--font-heading)" }}
+              >
+                Pyro
+              </span>
             </Link>
 
+            {/* Main Auth Form Container Card */}
             <motion.div
-              initial={{ opacity: 0, y: 14 }}
+              initial={{ opacity: 0, y: 10 }}
               animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: 0.08 }}
-              className="rounded-3xl border border-white/[0.08] bg-white/[0.04] p-6 shadow-2xl shadow-black/30 sm:p-8"
+              transition={{ duration: 0.6, delay: 0.05, ease: [0.16, 1, 0.3, 1] }}
+              className="rounded-2xl border border-white/[0.015] bg-[#131312]/10 p-5 shadow-[0_15px_50px_rgba(0,0,0,0.25)] backdrop-blur-md sm:p-6.5 relative overflow-hidden"
             >
-              <div>
-                <h1 className="text-2xl font-semibold tracking-tight text-white">
+              {/* Radial backlight highlight inside the form card */}
+              <div className="absolute inset-0 bg-[radial-gradient(circle_at_50%_0%,rgba(255,255,255,0.015),transparent_60%)] pointer-events-none" />
+              
+              <div className="relative z-10">
+                <h1 
+                  className="text-lg sm:text-[21px] font-medium tracking-[-0.03em] text-[#e8e8e5]"
+                  style={{ fontFamily: "var(--font-heading)" }}
+                >
                   {title}
                 </h1>
-                <p className="mt-2 text-sm leading-6 text-zinc-500">
+                <p className="mt-2 text-[13px] leading-[1.55] text-[#8a8a84] font-light">
                   {subtitle}
                 </p>
               </div>
 
-              <div className="mt-8">{children}</div>
+              <div className="mt-6 relative z-10">{children}</div>
             </motion.div>
 
-            <div className="mt-6 text-center text-sm text-zinc-500">
+            {/* Footer switcher note */}
+            <div className="mt-4.5 text-center text-[12.5px] text-[#6f6f69] font-light">
               {footer}
             </div>
           </div>
         </section>
+
       </main>
     </PageTransition>
   );

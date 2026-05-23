@@ -150,10 +150,17 @@ export function RoomSidebar({
   const filteredRooms = useMemo(() => {
     if (!roomFilter.trim()) return rooms;
     const lowered = roomFilter.trim().toLowerCase();
-    return rooms.filter((roomMember) =>
-      roomMember.room.name.toLowerCase().includes(lowered),
-    );
-  }, [roomFilter, rooms]);
+    return rooms.filter((roomMember) => {
+      const r = roomMember.room;
+      if (r.isDM && user) {
+        const otherMember = r.roomMembers?.find((m) => m.user.id !== user.id);
+        if (otherMember && otherMember.user.username.toLowerCase().includes(lowered)) {
+          return true;
+        }
+      }
+      return r.name.toLowerCase().includes(lowered);
+    });
+  }, [roomFilter, rooms, user]);
 
   const channels = useMemo(() => {
     return filteredRooms.filter((rm) => !rm.room.isDM);

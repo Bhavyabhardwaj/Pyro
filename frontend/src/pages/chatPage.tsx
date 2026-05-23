@@ -650,6 +650,10 @@ const ChatPage = () => {
             setIsConnected(true);
         });
 
+        newSocket.on("connect_error", (err) => {
+            console.error("Socket connection error:", err.message);
+        });
+
         newSocket.on("disconnect", () => {
             setIsConnected(false);
             setOnlineUsers(new Set());
@@ -692,6 +696,16 @@ const ChatPage = () => {
             scheduleFlushIncoming();
         });
 
+        newSocket.on("roomCreated", (room: Room) => {
+            console.log("Socket received roomCreated:", room);
+            setRooms((prev) => {
+                const exists = prev.some((r) => r.room.id === room.id);
+                if (exists) return prev;
+                return [...prev, { room }];
+            });
+            newSocket.emit("joinRoom", room.id);
+        });
+
         const handleUserTyping = (payload: { userId?: string; roomId?: string }) => {
             console.debug("[typing] receive userTyping", payload);
             if (!payload.userId || !payload.roomId) return;
@@ -727,6 +741,7 @@ const ChatPage = () => {
             if (selectedRoomIdRef.current) {
                 stopTyping(selectedRoomIdRef.current, true);
             }
+            newSocket.off("roomCreated");
             newSocket.off("newMessage");
             newSocket.off("onlineUsers");
             newSocket.off("userOnline");
@@ -861,7 +876,7 @@ const ChatPage = () => {
 
     return (
         <PageTransition>
-            <div className="relative h-screen overflow-hidden bg-[var(--bg-charcoal)] text-[var(--text-primary)]">
+            <div className="relative h-screen h-[100dvh] overflow-hidden bg-[var(--bg-charcoal)] text-[var(--text-primary)]">
                 <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_50%_0%,rgba(242,242,239,0.02),transparent_50%)]" />
                 <div className="pointer-events-none absolute inset-x-10 top-0 h-px bg-[var(--border-muted)]" />
                 <div className="relative grid h-full grid-cols-1 gap-0 p-0 md:grid-cols-[290px_minmax(0,1fr)] md:gap-2.5 md:p-2.5 xl:grid-cols-[310px_minmax(0,1fr)]">

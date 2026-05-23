@@ -232,7 +232,7 @@ export function MessageComposer({
                 placeholder={
                   disabled ? "Select a channel to message" : "Message..."
                 }
-                className="max-h-24 min-h-[32px] w-full border-transparent bg-transparent px-3 py-1.5 text-[12.5px] leading-relaxed placeholder:text-[var(--text-muted)] text-[var(--text-primary)] focus:border-transparent focus:ring-0 resize-none"
+                className="max-h-24 min-h-[32px] w-full border-transparent bg-transparent px-3 py-1.5 text-[16px] md:text-[12.5px] leading-relaxed placeholder:text-[var(--text-muted)] text-[var(--text-primary)] focus:border-transparent focus:ring-0 resize-none"
               />
             </div>
 

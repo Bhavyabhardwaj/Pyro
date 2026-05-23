@@ -82,6 +82,7 @@ export function MessageList({
     src: string;
     name: string;
   } | null>(null);
+  const [activeMessageId, setActiveMessageId] = useState<string | null>(null);
 
   const isSameAuthor = (a?: ChatMessage, b?: ChatMessage) => {
     if (!a || !b) return false;
@@ -177,7 +178,10 @@ export function MessageList({
   }
 
   return (
-    <div className="relative mx-auto max-w-3xl space-y-0 px-4 py-4 md:px-6">
+    <div 
+      className="relative mx-auto max-w-3xl space-y-0 px-4 py-4 md:px-6"
+      onClick={() => setActiveMessageId(null)}
+    >
       <div className="relative space-y-0.5">
         {messages.map((message, index) => {
           const previous = messages[index - 1];
@@ -211,7 +215,12 @@ export function MessageList({
               className={cn(
                 "group relative grid w-full grid-cols-[32px_minmax(0,1fr)] items-start gap-2.5 rounded-xl px-2 transition-all duration-150 hover:bg-[rgba(242,242,239,0.012)]",
                 grouped ? "mt-0.5 py-0.5 animate-none" : "mt-4 py-1",
+                activeMessageId === message.id && "bg-[rgba(242,242,239,0.02)]"
               )}
+              onClick={(e) => {
+                e.stopPropagation();
+                setActiveMessageId((prev) => (prev === message.id ? null : message.id));
+              }}
             >
               {/* LEFT Side: Avatar columns */}
               <div className="flex h-6 w-8 items-start justify-start select-none">
@@ -400,7 +409,13 @@ export function MessageList({
                   </div>
 
                   {/* Hover toolbar (Compact floating action bar on right side of message cell) */}
-                  <div className="pointer-events-none absolute -top-4 right-3 flex -translate-y-1 items-center gap-0.5 rounded-lg border border-[rgba(255,255,255,0.08)] bg-[rgba(22,22,21,0.92)] px-1 py-0.5 text-[10px] text-[var(--text-secondary)] opacity-0 shadow-[0_8px_24px_rgba(0,0,0,0.45)] backdrop-blur-xl transition-all duration-200 group-hover:translate-y-0 group-hover:opacity-100">
+                  <div 
+                    onClick={(e) => e.stopPropagation()}
+                    className={cn(
+                      "pointer-events-none absolute -top-4 right-3 flex -translate-y-1 items-center gap-0.5 rounded-lg border border-[rgba(255,255,255,0.08)] bg-[rgba(22,22,21,0.92)] px-1 py-0.5 text-[10px] text-[var(--text-secondary)] opacity-0 shadow-[0_8px_24px_rgba(0,0,0,0.45)] backdrop-blur-xl transition-all duration-200 group-hover:translate-y-0 group-hover:opacity-100 group-hover:pointer-events-auto",
+                      activeMessageId === message.id && "translate-y-0 opacity-100 pointer-events-auto"
+                    )}
+                  >
                     <div className="pointer-events-auto flex items-center gap-0.5 select-none">
                       <motion.button
                         type="button"

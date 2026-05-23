@@ -20,28 +20,30 @@ export function PyroMark({ className }: { className?: string }) {
   return (
     <div
       className={cn(
-        "relative flex h-9 w-9 items-center justify-center overflow-hidden rounded-xl border border-white/10 bg-zinc-950 shadow-lg shadow-cyan-950/30",
+        "relative flex h-7.5 w-7.5 items-center justify-center overflow-hidden rounded-md border border-white/[0.08] bg-[#161615] shadow-md transition-all duration-300 hover:border-white/15 hover:shadow-[0_0_12px_rgba(141,162,170,0.08)]",
         className,
       )}
     >
-      <div className="absolute inset-0 bg-[radial-gradient(circle_at_50%_18%,rgba(103,232,249,0.32),transparent_46%)]" />
+      {/* Soft monochrome accent highlight inside the container */}
+      <div className="absolute inset-0 bg-[radial-gradient(circle_at_50%_0%,rgba(255,255,255,0.06),transparent_65%)]" />
       <svg
         viewBox="0 0 24 24"
         aria-hidden="true"
-        className="relative h-5 w-5 text-white"
+        className="relative h-[13px] w-[13px] text-[#e8e8e5]"
         fill="none"
       >
+        {/* Terminal chevron prompt */}
         <path
-          d="M12.2 3.5c2.3 2.3 4.9 5 4.9 8.9 0 4.2-2.5 7.1-5.4 7.1-3 0-5.1-2.2-5.1-5.3 0-2.2 1.1-4.1 3-5.7-.1 1.7.7 3 2 3.8 1.9-2.3.1-5.5.6-8.8Z"
-          className="fill-cyan-100"
-        />
-        <path
-          d="M12 20c2.7-.4 4.5-2.7 4.5-5.7 0-1.4-.3-2.6-.9-3.7"
+          d="M11.5 5.5l4 4-4 4"
           stroke="currentColor"
-          strokeWidth="1.4"
+          strokeWidth="2.2"
           strokeLinecap="round"
-          className="text-white/70"
+          strokeLinejoin="round"
         />
+        {/* Terminal vertical cursor block on left */}
+        <rect x="5.5" y="5" width="2.2" height="14" rx="0.5" fill="currentColor" />
+        {/* Terminal horizontal cursor block on bottom right */}
+        <rect x="11.5" y="16.5" width="5.5" height="2" rx="0.5" fill="currentColor" />
       </svg>
     </div>
   );

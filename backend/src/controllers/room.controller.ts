@@ -1,6 +1,8 @@
 import { Request, Response, NextFunction } from "express";
 import { roomService } from "../services";
 import { responseUtils } from "../utils";
+import { getIO } from "../socket";
+import { presenceService } from "../socket/presence";
 
 export const roomController = {
     async createRoom(req: Request, res: Response, next: NextFunction) {
@@ -9,6 +11,14 @@ export const roomController = {
             const userId = (req as any).user?.userId;
 
             const room = await roomService.createRoom({ name, userId });
+
+            // Notify all online sockets that a new channel was created
+            try {
+                const io = getIO();
+                io.emit("roomCreated", room);
+            } catch (err) {
+                console.error("Failed to broadcast channel created event:", err);
+            }
 
             return responseUtils.success(res, room, "Room created successfully", 201);
         } catch (error) {
@@ -41,6 +51,24 @@ export const roomController = {
             const targetUserId = req.body.targetUserId;
 
             const room = await roomService.createDM(userId, targetUserId);
+
+            // Notify target user and sender in real-time via Socket
+            try {
+                const io = getIO();
+                // Emit to target user
+                const targetSocketId = presenceService.getSocketId(targetUserId);
+                if (targetSocketId) {
+                    io.to(targetSocketId).emit("roomCreated", room);
+                }
+                // Emit to sender
+                const senderSocketId = presenceService.getSocketId(userId);
+                if (senderSocketId) {
+                    io.to(senderSocketId).emit("roomCreated", room);
+                }
+            } catch (err) {
+                console.error("Failed to broadcast DM created event:", err);
+            }
+
             return responseUtils.success(res, room, "DM started successfully", 201);
         } catch (error) {
             next(error);

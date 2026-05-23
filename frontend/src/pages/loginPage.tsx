@@ -47,7 +47,7 @@ const LoginPage = () => {
             footer={
                 <>
                     New to Pyro?{" "}
-                    <Link className="font-medium text-zinc-200 hover:text-white" to="/register">
+                    <Link className="font-medium text-[#8da2aa] hover:text-white transition duration-200" to="/register">
                         Create an account
                     </Link>
                 </>
@@ -55,42 +55,42 @@ const LoginPage = () => {
         >
             <OAuthOptions onProviderSelect={handleOAuthSelect} />
             {oauthNotice && (
-                <p className="mb-5 rounded-xl border border-cyan-300/15 bg-cyan-300/10 px-4 py-3 text-sm leading-6 text-cyan-100">
+                <p className="mb-3.5 rounded-xl border border-[#8da2aa]/15 bg-[#8da2aa]/5 px-4 py-2.5 text-[12.5px] leading-[1.5] text-[#8da2aa]">
                     {oauthNotice}
                 </p>
             )}
-            <form onSubmit={handleSubmit} className="space-y-4">
+            <form onSubmit={handleSubmit} className="space-y-3">
                 <label className="block">
-                    <span className="mb-2 block text-xs font-medium uppercase tracking-[0.18em] text-zinc-500">
+                    <span className="mb-1.5 block text-[9.5px] font-mono uppercase tracking-[0.16em] text-[#6f6f69]">
                         Email
                     </span>
                     <Input
                     type="email"
-                    placeholder="Email"
+                    placeholder="name@workspace.com"
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
                     required
                 />
                 </label>
                 <label className="block">
-                    <span className="mb-2 block text-xs font-medium uppercase tracking-[0.18em] text-zinc-500">
+                    <span className="mb-1.5 block text-[9.5px] font-mono uppercase tracking-[0.16em] text-[#6f6f69]">
                         Password
                     </span>
                     <Input
                     type="password"
-                    placeholder="Password"
+                    placeholder="••••••••"
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
                     required
                 />
                 </label>
                 {error && (
-                    <p className="rounded-xl border border-red-400/20 bg-red-500/10 px-4 py-3 text-sm text-red-200">
+                    <p className="rounded-xl border border-rose-500/15 bg-rose-500/5 px-4 py-2.5 text-[12.5px] text-rose-300">
                         {error}
                     </p>
                 )}
-                <Button type="submit" className="w-full" disabled={isSubmitting}>
-                    {isSubmitting ? 'Signing in...' : 'Login'}
+                <Button type="submit" className="w-full h-9.5 text-[12.5px] font-medium mt-1" disabled={isSubmitting}>
+                    {isSubmitting ? 'Signing in...' : 'Sign In'}
                 </Button>
             </form>
         </AuthLayout>

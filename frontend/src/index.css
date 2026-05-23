@@ -1,10 +1,11 @@
+@import url("https://api.fontshare.com/v2/css?f[]=satoshi@300,400,500,600,700,900&display=swap");
 @import url("https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&family=Inter+Tight:wght@400;500;600&display=swap");
 @import "tailwindcss";
 
 :root {
   color-scheme: dark;
   --font-sans: "Inter", "Segoe UI", system-ui, sans-serif;
-  --font-heading: "Inter Tight", "Inter", system-ui, sans-serif;
+  --font-heading: "Satoshi", "Inter Tight", "Inter", system-ui, sans-serif;
   font-family: var(--font-sans);
   
   /* System Warm Charcoal Palette */
@@ -17,16 +18,18 @@
   --text-secondary: #a8a8a2;
   --text-muted: #6f6f69;
   
-  /* Accents */
-  --accent-teal: #2dd4bf;
-  --accent-teal-muted: rgba(45, 212, 191, 0.15);
-  --accent-blue-gray: #94a3b8;
-  --presence-green: #10b981;
-  --presence-green-glow: rgba(16, 185, 129, 0.2);
+  /* Restrained System Accent — Desaturated Blue-Gray */
+  --accent-teal: #8da2aa;
+  --accent-teal-muted: rgba(141, 162, 170, 0.12);
+  --accent-blue-gray: #8da2aa;
+  --presence-green: #8da2aa;
+  --presence-green-glow: rgba(141, 162, 170, 0.15);
   
   background: var(--bg-charcoal);
   color: var(--text-primary);
-  text-rendering: geometricPrecision;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
 }
 
 * {
@@ -44,6 +47,22 @@ body {
   background: var(--bg-charcoal);
   color: var(--text-primary);
   font-family: var(--font-sans);
+  position: relative;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+body::after {
+  content: "";
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100vw;
+  height: 100vh;
+  opacity: 0.01; /* Noise texture is felt, not seen */
+  pointer-events: none;
+  z-index: 9999;
+  background: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noiseFilter'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.65' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noiseFilter)'/%3E%3C/svg%3E");
 }
 
 @keyframes float-slow {

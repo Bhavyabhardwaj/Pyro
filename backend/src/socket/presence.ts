@@ -18,5 +18,8 @@ export const presenceService = {
     },
     getOnlineUsers: () => {
         return Array.from(onlineUsers.keys());
+    },
+    getSocketId: (userId: string) => {
+        return onlineUsers.get(userId);
     }
 }
