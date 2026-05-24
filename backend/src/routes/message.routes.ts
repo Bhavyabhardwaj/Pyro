@@ -9,5 +9,7 @@ const router = Router({
 
 router.post("/", authMiddleware, messageController.sendMessage);
 router.get("/", authMiddleware, messageController.getRoomMessages);
+router.patch("/:messageId", authMiddleware, messageController.editMessage);
+router.delete("/:messageId", authMiddleware, messageController.deleteMessage);
 
 export const messageRoutes = router;
