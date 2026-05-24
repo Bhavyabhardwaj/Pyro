@@ -360,10 +360,6 @@ export type RoomUpdateOneRequiredWithoutMessagesNestedInput = {
   update?: Prisma.XOR<Prisma.XOR<Prisma.RoomUpdateToOneWithWhereWithoutMessagesInput, Prisma.RoomUpdateWithoutMessagesInput>, Prisma.RoomUncheckedUpdateWithoutMessagesInput>
 }
 
-export type BoolFieldUpdateOperationsInput = {
-  set?: boolean
-}
-
 export type RoomCreateNestedOneWithoutRoomMembersInput = {
   create?: Prisma.XOR<Prisma.RoomCreateWithoutRoomMembersInput, Prisma.RoomUncheckedCreateWithoutRoomMembersInput>
   connectOrCreate?: Prisma.RoomCreateOrConnectWithoutRoomMembersInput

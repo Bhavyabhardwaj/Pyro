@@ -21,8 +21,9 @@ export const messageController = {
         try {
             const userId = (req as any).user?.userId;
             const roomId = req.params.roomId;
+            const { cursor, limit } = req.query;
 
-            const messages = await messageService.getRoomMessages(roomId, userId);
+            const messages = await messageService.getRoomMessages(roomId, userId, cursor as string | undefined, limit ? Number(limit) : 30);
             return responseUtils.success(res, messages, "Messages retrieved successfully");
         } catch (error) {
             next(error);

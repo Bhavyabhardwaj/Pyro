@@ -611,9 +611,10 @@ const ChatPage = () => {
             setIsMessagesLoading(true);
             try {
                 const response = await messageService.getRoomMessages(selectedRoom.id);
-                console.debug("fetched messages count:", response.data.length, "payload:", response.data);
+                const messagesList = response.data?.messages || [];
+                console.debug("fetched messages count:", messagesList.length, "payload:", response.data);
                 setMessages((prev) => {
-                    const mapped = response.data.map((message: any) => syncAvatar({ ...message, reactions: [] }));
+                    const mapped = messagesList.map((message: any) => syncAvatar({ ...message, reactions: [] }));
                     if (areMessageListsEqual(prev, mapped)) return prev;
                     return mapped;
                 });

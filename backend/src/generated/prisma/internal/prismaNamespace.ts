@@ -835,6 +835,8 @@ export const MessageScalarFieldEnum = {
   content: 'content',
   createdAt: 'createdAt',
   updatedAt: 'updatedAt',
+  isEdited: 'isEdited',
+  isDeleted: 'isDeleted',
   authorId: 'authorId',
   roomId: 'roomId'
 } as const
