@@ -63,6 +63,7 @@ export function MessageList({
   onToggleReaction,
   typingUsers: _typingUsers,
   onlineUsers = new Set(),
+  isFetchingOlder = false,
 }: {
   messages: ChatMessage[];
   isLoading: boolean;
@@ -75,6 +76,7 @@ export function MessageList({
   onReply: (message: ChatMessage) => void;
   onToggleReaction: (messageId: string, emoji: string) => void;
   typingUsers?: string[];
+  isFetchingOlder?: boolean;
 }) {
   const [reactionPickerId, setReactionPickerId] = useState<string | null>(null);
   const reactionPickerRef = useRef<HTMLDivElement | null>(null);
@@ -182,6 +184,24 @@ export function MessageList({
       className="relative mx-auto max-w-3xl space-y-0 px-4 py-4 md:px-6"
       onClick={() => setActiveMessageId(null)}
     >
+      <AnimatePresence>
+        {isFetchingOlder && (
+          <motion.div
+            initial={{ opacity: 0, height: 0 }}
+            animate={{ opacity: 1, height: "auto" }}
+            exit={{ opacity: 0, height: 0 }}
+            className="flex justify-center py-2"
+          >
+            <div className="flex items-center gap-1.5 text-[10px] text-[var(--text-muted)] select-none">
+              <svg className="animate-spin h-3.5 w-3.5 text-[var(--text-muted)]" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" />
+                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
+              </svg>
+              <span>Loading history...</span>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
       <div className="relative space-y-0.5">
         {messages.map((message, index) => {
           const previous = messages[index - 1];
@@ -256,7 +276,7 @@ export function MessageList({
                     <span className="text-[9.5px] text-[var(--text-muted)] font-normal">
                       {formatTime(message.createdAt)}
                     </span>
-                    {message.editedAt && (
+                    {(message.editedAt || message.isEdited) && (
                       <span className="text-[9px] text-[var(--text-muted)] font-normal">
                         (edited)
                       </span>
@@ -294,13 +314,18 @@ export function MessageList({
 
                     {/* Message content */}
                     {message.content && (
-                      <p className="whitespace-pre-wrap text-[12.5px] leading-relaxed font-normal text-neutral-200">
+                      <p className={cn(
+                        "whitespace-pre-wrap text-[12.5px] leading-relaxed font-normal",
+                        message.isDeleted 
+                          ? "text-[var(--text-muted)] italic font-light select-none" 
+                          : "text-neutral-200"
+                      )}>
                         {message.content}
                       </p>
                     )}
 
                     {/* Attachments rendering */}
-                    {message.attachments && message.attachments.length > 0 && (
+                    {!message.isDeleted && message.attachments && message.attachments.length > 0 && (
                       <div className="mt-2 grid gap-1.5 max-w-sm">
                         {message.attachments.map((attachment) => {
                           const name = (attachment as any).fileName || (attachment as any).name || "File";
@@ -367,7 +392,7 @@ export function MessageList({
                     )}
 
                     {/* Slack/Discord style glass emoji reactions */}
-                    {message.reactions && message.reactions.length > 0 && (
+                    {!message.isDeleted && message.reactions && message.reactions.length > 0 && (
                       <div className="mt-1.5 flex flex-wrap gap-1">
                         {message.reactions.map((reaction) => (
                           <button
@@ -389,7 +414,7 @@ export function MessageList({
                     )}
 
                     {/* Delivery & Pending states (warmer glassmorphic checkmarks row) */}
-                    {isCurrentUser && (
+                    {isCurrentUser && !message.isDeleted && (
                       <div className="mt-1.5 flex items-center justify-end gap-1 text-[9px] text-[var(--text-muted)] select-none px-0.5">
                         {message.isPending ? (
                           <span className="animate-pulse">Sending...</span>
@@ -407,75 +432,76 @@ export function MessageList({
                       </div>
                     )}
                   </div>
-
                   {/* Hover toolbar (Compact floating action bar on right side of message cell) */}
-                  <div 
-                    onClick={(e) => e.stopPropagation()}
-                    className={cn(
-                      "pointer-events-none absolute -top-4 right-3 flex -translate-y-1 items-center gap-0.5 rounded-lg border border-[rgba(255,255,255,0.08)] bg-[rgba(22,22,21,0.92)] px-1 py-0.5 text-[10px] text-[var(--text-secondary)] opacity-0 shadow-[0_8px_24px_rgba(0,0,0,0.45)] backdrop-blur-xl transition-all duration-200 group-hover:translate-y-0 group-hover:opacity-100 group-hover:pointer-events-auto",
-                      activeMessageId === message.id && "translate-y-0 opacity-100 pointer-events-auto"
-                    )}
-                  >
-                    <div className="pointer-events-auto flex items-center gap-0.5 select-none">
-                      <motion.button
-                        type="button"
-                        whileHover={{ scale: 1.05 }}
-                        whileTap={{ scale: 0.95 }}
-                        onClick={() => onReply(message)}
-                        className="flex h-5 w-5 items-center justify-center rounded transition hover:bg-white/5 hover:text-[var(--text-primary)]"
-                        title="Reply"
-                      >
-                        <CornerUpLeft className="h-3 w-3" />
-                      </motion.button>
-                      <motion.button
-                        type="button"
-                        whileHover={{ scale: 1.05 }}
-                        whileTap={{ scale: 0.95 }}
-                        onClick={() => setReactionPickerId(message.id)}
-                        className="flex h-5 w-5 items-center justify-center rounded transition hover:bg-white/5 hover:text-[var(--text-primary)]"
-                        title="React"
-                      >
-                        <SmilePlus className="h-3 w-3" />
-                      </motion.button>
-                      <motion.button
-                        type="button"
-                        whileHover={{ scale: 1.05 }}
-                        whileTap={{ scale: 0.95 }}
-                        onClick={() => navigator.clipboard?.writeText(message.content)}
-                        className="flex h-5 w-5 items-center justify-center rounded transition hover:bg-white/5 hover:text-[var(--text-primary)]"
-                        title="Copy text"
-                      >
-                        <Copy className="h-3 w-3" />
-                      </motion.button>
-                      {isCurrentUser && (
-                        <>
-                          <motion.button
-                            type="button"
-                            whileHover={canEdit ? { scale: 1.05 } : undefined}
-                            whileTap={canEdit ? { scale: 0.95 } : undefined}
-                            onClick={() => { if (canEdit) onEdit(message); }}
-                            className={cn(
-                              "flex h-5 w-5 items-center justify-center rounded transition",
-                              canEdit ? "hover:bg-white/5 hover:text-[var(--text-primary)]" : "cursor-not-allowed opacity-30"
-                            )}
-                            title={editExpired ? "Editing window expired" : "Edit"}
-                          >
-                            <Pencil className="h-3 w-3" />
-                          </motion.button>
-                          <motion.button
-                            type="button"
-                            whileHover={{ scale: 1.05 }}
-                            whileTap={{ scale: 0.95 }}
-                            onClick={() => onDelete(message.id)}
-                            className="flex h-5 w-5 items-center justify-center rounded text-red-400 transition hover:bg-red-500/10"
-                            title="Delete"
-                          >
-                            <Trash2 className="h-3 w-3" />
-                          </motion.button>
-                        </>
+                  {!message.isDeleted && (
+                    <div 
+                      onClick={(e) => e.stopPropagation()}
+                      className={cn(
+                        "pointer-events-none absolute -top-4 right-3 flex -translate-y-1 items-center gap-0.5 rounded-lg border border-[rgba(255,255,255,0.08)] bg-[rgba(22,22,21,0.92)] px-1 py-0.5 text-[10px] text-[var(--text-secondary)] opacity-0 shadow-[0_8px_24px_rgba(0,0,0,0.45)] backdrop-blur-xl transition-all duration-200 group-hover:translate-y-0 group-hover:opacity-100 group-hover:pointer-events-auto",
+                        activeMessageId === message.id && "translate-y-0 opacity-100 pointer-events-auto"
                       )}
+                    >
+                      <div className="pointer-events-auto flex items-center gap-0.5 select-none">
+                        <motion.button
+                          type="button"
+                          whileHover={{ scale: 1.05 }}
+                          whileTap={{ scale: 0.95 }}
+                          onClick={() => onReply(message)}
+                          className="flex h-5 w-5 items-center justify-center rounded transition hover:bg-white/5 hover:text-[var(--text-primary)]"
+                          title="Reply"
+                        >
+                          <CornerUpLeft className="h-3 w-3" />
+                        </motion.button>
+                        <motion.button
+                          type="button"
+                          whileHover={{ scale: 1.05 }}
+                          whileTap={{ scale: 0.95 }}
+                          onClick={() => setReactionPickerId(message.id)}
+                          className="flex h-5 w-5 items-center justify-center rounded transition hover:bg-white/5 hover:text-[var(--text-primary)]"
+                          title="React"
+                        >
+                          <SmilePlus className="h-3 w-3" />
+                        </motion.button>
+                        <motion.button
+                          type="button"
+                          whileHover={{ scale: 1.05 }}
+                          whileTap={{ scale: 0.95 }}
+                          onClick={() => navigator.clipboard?.writeText(message.content)}
+                          className="flex h-5 w-5 items-center justify-center rounded transition hover:bg-white/5 hover:text-[var(--text-primary)]"
+                          title="Copy text"
+                        >
+                          <Copy className="h-3 w-3" />
+                        </motion.button>
+                        {isCurrentUser && (
+                          <>
+                            <motion.button
+                              type="button"
+                              whileHover={canEdit ? { scale: 1.05 } : undefined}
+                              whileTap={canEdit ? { scale: 0.95 } : undefined}
+                              onClick={() => { if (canEdit) onEdit(message); }}
+                              className={cn(
+                                "flex h-5 w-5 items-center justify-center rounded transition",
+                                canEdit ? "hover:bg-white/5 hover:text-[var(--text-primary)]" : "cursor-not-allowed opacity-30"
+                              )}
+                              title={editExpired ? "Editing window expired" : "Edit"}
+                            >
+                              <Pencil className="h-3 w-3" />
+                            </motion.button>
+                            <motion.button
+                              type="button"
+                              whileHover={{ scale: 1.05 }}
+                              whileTap={{ scale: 0.95 }}
+                              onClick={() => onDelete(message.id)}
+                              className="flex h-5 w-5 items-center justify-center rounded text-red-400 transition hover:bg-red-500/10"
+                              title="Delete"
+                            >
+                              <Trash2 className="h-3 w-3" />
+                            </motion.button>
+                          </>
+                        )}
+                      </div>
                     </div>
-                  </div>
+                  )}
                 </div>
 
                 {/* Reaction Popover container (Inline expansion) */}

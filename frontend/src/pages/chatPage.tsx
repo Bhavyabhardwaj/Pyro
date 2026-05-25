@@ -17,8 +17,10 @@ import { MessageList } from "../components/chat/MessageList";
 import { MessageComposer } from "../components/chat/MessageComposer";
 import { TypingIndicator } from "../components/chat/TypingIndicator";
 import { CommandPalette } from "../components/chat/CommandPalette";
+import { useToast } from "../components/ui/Toast";
 
 const ChatPage = () => {
+    const { showToast } = useToast();
     const mountRef = useRef(0);
     useEffect(() => {
         mountRef.current += 1;
@@ -32,6 +34,9 @@ const ChatPage = () => {
     const [newRoomName, setNewRoomName] = useState("");
     const [selectedRoom, setSelectedRoom] = useState<Room | null>(null);
     const [messages, setMessages] = useState<ChatMessage[]>([]);
+    const [nextCursor, setNextCursor] = useState<string | null>(null);
+    const [hasMore, setHasMore] = useState(false);
+    const [isFetchingOlderMessages, setIsFetchingOlderMessages] = useState(false);
     const [messageInput, setMessageInput] = useState("");
     const [composerAttachments, setComposerAttachments] = useState<AttachmentItem[]>([]);
     const [replyTo, setReplyTo] = useState<ChatMessage | null>(null);
@@ -55,6 +60,7 @@ const ChatPage = () => {
     const [showNewMessagesBanner, setShowNewMessagesBanner] = useState<boolean>(false);
     const scrollContainerRef = useRef<HTMLDivElement | null>(null);
     const lastRoomIdRef = useRef<string | null>(null);
+    const lastMessageIdRef = useRef<string | null>(null);
     const socketRef = useRef<Socket | null>(null);
     const messagesEndRef = useRef<HTMLDivElement | null>(null);
     const selectedRoomIdRef = useRef<string | null>(null);
@@ -404,6 +410,10 @@ const ChatPage = () => {
 
     const handleSelectRoom = useCallback((room: Room) => {
         setSelectedRoom(room);
+        setMessages([]);
+        setNextCursor(null);
+        setHasMore(false);
+        setIsFetchingOlderMessages(false);
         setUnreadCounts((prev) => ({ ...prev, [room.id]: 0 }));
         setReplyTo(null);
         setEditingMessage(null);
@@ -467,19 +477,18 @@ const ChatPage = () => {
 
         if (editingMessage) {
             if (!trimmed) return;
-            setMessages((prev) =>
-                prev.map((message) =>
-                    message.id === editingMessage.id
-                        ? {
-                              ...message,
-                              content: trimmed,
-                              editedAt: new Date().toISOString(),
-                          }
-                        : message,
-                ),
-            );
-            setEditingMessage(null);
-            setMessageInput("");
+            setIsSendingMessage(true);
+            try {
+                await messageService.editMessage(selectedRoom.id, editingMessage.id, trimmed);
+            } catch (error: any) {
+                console.error("Error editing message:", error);
+                const errMsg = error.response?.data?.message || "Failed to edit message";
+                showToast(errMsg, "error");
+            } finally {
+                setIsSendingMessage(false);
+                setEditingMessage(null);
+                setMessageInput("");
+            }
             return;
         }
 
@@ -541,6 +550,51 @@ const ChatPage = () => {
             );
         } finally {
             setIsSendingMessage(false);
+        }
+    };
+
+    const fetchOlderMessages = async () => {
+        if (!selectedRoom || isFetchingOlderMessages || !hasMore || !nextCursor) return;
+        setIsFetchingOlderMessages(true);
+        
+        const container = scrollContainerRef.current;
+        const previousScrollHeight = container ? container.scrollHeight : 0;
+        const previousScrollTop = container ? container.scrollTop : 0;
+
+        try {
+            console.debug("[pagination] fetching older messages for cursor", nextCursor);
+            const response = await messageService.getRoomMessages(selectedRoom.id, nextCursor);
+            const messagesList = response.data?.messages || [];
+            
+            if (messagesList.length > 0) {
+                setMessages((prev) => {
+                    const existingIds = new Set(prev.map((m: ChatMessage) => m.id));
+                    const filteredNew = messagesList.filter((m: any) => !existingIds.has(m.id));
+                    
+                    const mappedNew = filteredNew.map((message: any) => syncAvatar({ ...message, reactions: [] }));
+                    
+                    const merged = [...mappedNew, ...prev];
+                    return merged.sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime());
+                });
+
+                setNextCursor(response.data?.nextCursor ?? null);
+                setHasMore(response.data?.hasMore ?? false);
+
+                if (container) {
+                    requestAnimationFrame(() => {
+                        const newScrollHeight = container.scrollHeight;
+                        container.scrollTop = previousScrollTop + (newScrollHeight - previousScrollHeight);
+                    });
+                }
+            } else {
+                setHasMore(false);
+                setNextCursor(null);
+            }
+        } catch (error) {
+            console.error("Error fetching older messages:", error);
+            showToast("Failed to load older messages", "error");
+        } finally {
+            setIsFetchingOlderMessages(false);
         }
     };
 
@@ -618,6 +672,8 @@ const ChatPage = () => {
                     if (areMessageListsEqual(prev, mapped)) return prev;
                     return mapped;
                 });
+                setNextCursor(response.data?.nextCursor ?? null);
+                setHasMore(response.data?.hasMore ?? false);
                 setUnreadCounts((prev) => ({ ...prev, [selectedRoom.id]: 0 }));
                 setMessagesError(null);
             } catch (error) {
@@ -707,6 +763,39 @@ const ChatPage = () => {
             newSocket.emit("joinRoom", room.id);
         });
 
+        newSocket.on("messageUpdated", (updated: ChatMessage) => {
+            console.debug("[socket] messageUpdated received:", updated);
+            setMessages((prev) =>
+                prev.map((m) => {
+                    if (m.id !== updated.id) return m;
+                    return {
+                        ...m,
+                        content: updated.content,
+                        isEdited: updated.isEdited,
+                        isDeleted: updated.isDeleted,
+                        attachments: updated.attachments,
+                        editedAt: updated.editedAt,
+                    };
+                })
+            );
+        });
+
+        newSocket.on("messageDeleted", (deleted: ChatMessage) => {
+            console.debug("[socket] messageDeleted received:", deleted);
+            setMessages((prev) =>
+                prev.map((m) => {
+                    if (m.id !== deleted.id) return m;
+                    return {
+                        ...m,
+                        content: deleted.content,
+                        isDeleted: true,
+                        attachments: [],
+                        reactions: [],
+                    };
+                })
+            );
+        });
+
         const handleUserTyping = (payload: { userId?: string; roomId?: string }) => {
             console.debug("[typing] receive userTyping", payload);
             if (!payload.userId || !payload.roomId) return;
@@ -742,6 +831,8 @@ const ChatPage = () => {
             if (selectedRoomIdRef.current) {
                 stopTyping(selectedRoomIdRef.current, true);
             }
+            newSocket.off("messageUpdated");
+            newSocket.off("messageDeleted");
             newSocket.off("roomCreated");
             newSocket.off("newMessage");
             newSocket.off("onlineUsers");
@@ -771,6 +862,11 @@ const ChatPage = () => {
     const handleScroll = () => {
         const container = scrollContainerRef.current;
         if (!container) return;
+
+        if (container.scrollTop < 80) {
+            fetchOlderMessages();
+        }
+
         const isAtBottom = container.scrollHeight - container.scrollTop - container.clientHeight <= 100;
         if (isAtBottom) {
             setShowNewMessagesBanner(false);
@@ -786,13 +882,18 @@ const ChatPage = () => {
         lastRoomIdRef.current = selectedRoom?.id ?? null;
         
         if (isRoomSwitch) {
-            // Instant scroll on room switch
             container.scrollTop = container.scrollHeight;
             setShowNewMessagesBanner(false);
             return;
         }
         
         const lastMessage = messages[messages.length - 1];
+
+        if (lastMessageIdRef.current === lastMessage?.id) {
+            return;
+        }
+        lastMessageIdRef.current = lastMessage?.id ?? null;
+        
         const isSelf = lastMessage && (
             (user?.id && lastMessage.author.id === user.id) ||
             (user?.username && lastMessage.author.username === user.username)
@@ -943,15 +1044,21 @@ const ChatPage = () => {
                                     <MessageList
                                         messages={messages}
                                         isLoading={isMessagesLoading}
+                                        isFetchingOlder={isFetchingOlderMessages}
                                         currentUserId={user?.id}
                                         currentUsername={user?.username}
                                         currentUserAvatar={getUserAvatar()}
                                         onlineUsers={onlineUsers}
-                                        onDelete={(messageId) =>
-                                            setMessages((prev) =>
-                                                prev.filter((message) => message.id !== messageId),
-                                            )
-                                        }
+                                        onDelete={async (messageId) => {
+                                            if (!selectedRoom) return;
+                                            try {
+                                                await messageService.deleteMessage(selectedRoom.id, messageId);
+                                            } catch (error: any) {
+                                                console.error("Error deleting message:", error);
+                                                const errMsg = error.response?.data?.message || "Failed to delete message";
+                                                showToast(errMsg, "error");
+                                            }
+                                        }}
                                         onEdit={(message) => {
                                             setEditingMessage(message);
                                             setReplyTo(null);

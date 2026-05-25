@@ -64,5 +64,7 @@ export interface Message {
   attachments?: Attachment[];
   // Delivery status flags (frontend-specific for premium feel)
   status?: "sending" | "sent" | "delivered" | "failed";
+  isEdited?: boolean;
+  isDeleted?: boolean;
 }
 
