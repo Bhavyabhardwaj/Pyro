@@ -64,6 +64,7 @@ export function MessageList({
   typingUsers: _typingUsers,
   onlineUsers = new Set(),
   isFetchingOlder = false,
+  onRetry,
 }: {
   messages: ChatMessage[];
   isLoading: boolean;
@@ -77,6 +78,7 @@ export function MessageList({
   onToggleReaction: (messageId: string, emoji: string) => void;
   typingUsers?: string[];
   isFetchingOlder?: boolean;
+  onRetry?: (tempId: string) => void;
 }) {
   const [reactionPickerId, setReactionPickerId] = useState<string | null>(null);
   const reactionPickerRef = useRef<HTMLDivElement | null>(null);
@@ -324,6 +326,43 @@ export function MessageList({
                       </p>
                     )}
 
+                    {/* Delivery Status Indicator */}
+                    {isCurrentUser && message.status && (
+                      <div className="flex items-center gap-1.5 mt-1 select-none text-[10px]">
+                        {message.status === "sending" && (
+                          <div className="flex items-center gap-1.5 text-neutral-400/50">
+                            <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-neutral-400" />
+                            <span className="text-[10px] text-neutral-400/60 font-light">Sending...</span>
+                          </div>
+                        )}
+                        {message.status === "sent" && (
+                          <div className="flex items-center gap-0.5 text-emerald-400/60">
+                            <Check className="h-3 w-3" />
+                            <span className="text-[10px] font-light">Sent</span>
+                          </div>
+                        )}
+                        {message.status === "failed" && (
+                          <div className="flex items-center gap-1.5">
+                            <span className="text-red-400/70 text-[10px] font-medium flex items-center gap-1">
+                              ⚠️ Failed to send
+                            </span>
+                            {onRetry && (
+                              <button
+                                type="button"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  onRetry(message.id);
+                                }}
+                                className="px-1.5 py-0.5 rounded bg-red-950/40 border border-red-500/20 hover:bg-red-900/30 active:scale-95 transition-all text-red-300 font-medium text-[9px]"
+                              >
+                                Retry
+                              </button>
+                            )}
+                          </div>
+                        )}
+                      </div>
+                    )}
+
                     {/* Attachments rendering */}
                     {!message.isDeleted && message.attachments && message.attachments.length > 0 && (
                       <div className="mt-2 grid gap-1.5 max-w-sm">
@@ -433,7 +472,7 @@ export function MessageList({
                     )}
                   </div>
                   {/* Hover toolbar (Compact floating action bar on right side of message cell) */}
-                  {!message.isDeleted && (
+                  {!message.isDeleted && !message.status && (
                     <div 
                       onClick={(e) => e.stopPropagation()}
                       className={cn(

@@ -251,26 +251,51 @@ const ChatPage = () => {
         const normalizedIncoming = syncAvatar(incoming);
         setMessages((prev) => {
             const existingIndex = prev.findIndex((message) => message.id === normalizedIncoming.id);
-            if (existingIndex >= 0) return prev;
+            if (existingIndex >= 0) {
+                // If already exists, clear temporary "sending" state if lingering
+                return prev.map((m) =>
+                    m.id === normalizedIncoming.id
+                        ? { ...m, status: m.status === "sending" ? ("sent" as const) : m.status }
+                        : m
+                );
+            }
 
-            const pendingIndex = prev.findIndex(
-                (message) =>
-                    message.isPending &&
-                    message.roomId === normalizedIncoming.roomId &&
-                    message.author.id === normalizedIncoming.author.id &&
-                    message.content === normalizedIncoming.content,
-            );
+            const pendingIndex = prev.findIndex((message) => {
+                const isOptimistic = message.status === "sending" || message.isPending;
+                if (!isOptimistic) return false;
+
+                const isSameRoom = message.roomId === normalizedIncoming.roomId;
+                const isSameAuthor = message.author.id === normalizedIncoming.author.id;
+                const isSameContent = message.content === normalizedIncoming.content;
+
+                // Restrict heuristic matching to a 15-second window
+                const messageTime = new Date(message.createdAt || "").getTime();
+                const incomingTime = new Date(normalizedIncoming.createdAt || "").getTime();
+                const isNearTime = Math.abs(messageTime - incomingTime) < 15000;
+
+                return isSameRoom && isSameAuthor && isSameContent && isNearTime;
+            });
 
             if (pendingIndex >= 0) {
                 const pending = prev[pendingIndex];
                 const merged: ChatMessage = {
                     ...normalizedIncoming,
-                    attachments: pending.attachments,
-                    replyTo: pending.replyTo,
-                    reactions: pending.reactions,
+                    attachments: pending.attachments || normalizedIncoming.attachments,
+                    replyTo: pending.replyTo || normalizedIncoming.replyTo,
+                    reactions: pending.reactions || normalizedIncoming.reactions,
                     isPending: false,
                     isFailed: false,
+                    status: "sent" as const,
                 };
+
+                setTimeout(() => {
+                    setMessages((curr) =>
+                        curr.map((m) =>
+                            m.id === normalizedIncoming.id ? { ...m, status: undefined } : m,
+                        ),
+                    );
+                }, 2000);
+
                 return [
                     ...prev.slice(0, pendingIndex),
                     merged,
@@ -493,9 +518,10 @@ const ChatPage = () => {
         }
 
         const contentToSend = trimmed || "Shared an attachment";
+        const tempId = crypto.randomUUID();
         const localMessage: ChatMessage = {
-            id: createId(),
-            clientId: createId(),
+            id: tempId,
+            clientId: tempId,
             content: contentToSend,
             createdAt: new Date().toISOString(),
             roomId: selectedRoom.id,
@@ -514,6 +540,7 @@ const ChatPage = () => {
                   }
                 : undefined,
             isPending: true,
+            status: "sending" as const,
             reactions: [],
         };
 
@@ -526,30 +553,121 @@ const ChatPage = () => {
         setIsSendingMessage(true);
         try {
             const response = await messageService.sendMessage(selectedRoom.id, contentToSend, composerAttachments);
+            const realMsg = response.data;
             const confirmedMessage = syncAvatar({
-                ...response.data,
+                ...realMsg,
                 attachments: localMessage.attachments,
                 replyTo: localMessage.replyTo,
                 reactions: localMessage.reactions,
                 isPending: false,
                 isFailed: false,
+                status: "sent" as const,
             });
-            setMessages((prev) =>
-                prev.map((message) =>
-                    message.id === localMessage.id ? confirmedMessage : message,
-                ),
-            );
+
+            setMessages((prev) => {
+                const exists = prev.some((m) => m.id === realMsg.id);
+                if (exists) {
+                    return prev.map((message) =>
+                        message.id === realMsg.id ? { ...message, status: "sent" as const } : message,
+                    );
+                }
+                return prev.map((message) =>
+                    message.id === tempId ? confirmedMessage : message,
+                );
+            });
+
+            setTimeout(() => {
+                setMessages((prev) =>
+                    prev.map((message) =>
+                        message.id === realMsg.id || message.id === tempId
+                            ? { ...message, status: undefined }
+                            : message,
+                    ),
+                );
+            }, 2000);
+
         } catch (error) {
             console.error("Error sending message:", error);
             setMessages((prev) =>
                 prev.map((message) =>
-                    message.id === localMessage.id
-                        ? { ...message, isPending: false, isFailed: true }
+                    message.id === tempId
+                        ? { ...message, isPending: false, isFailed: true, status: "failed" as const }
                         : message,
                 ),
             );
+            showToast("Failed to send message", "error");
         } finally {
             setIsSendingMessage(false);
+        }
+    };
+
+    const handleRetryMessage = async (tempId: string) => {
+        if (!selectedRoom) return;
+
+        let failedMessage: ChatMessage | undefined;
+        setMessages((prev) => {
+            failedMessage = prev.find((m) => m.id === tempId);
+            if (!failedMessage) return prev;
+
+            return prev.map((m) =>
+                m.id === tempId
+                    ? { ...m, status: "sending" as const, isPending: true, isFailed: false }
+                    : m
+            );
+        });
+
+        if (!failedMessage) return;
+
+        try {
+            const response = await messageService.sendMessage(
+                selectedRoom.id,
+                failedMessage.content,
+                failedMessage.attachments
+            );
+
+            const realMsg = response.data;
+            const confirmedMessage = syncAvatar({
+                ...realMsg,
+                attachments: failedMessage.attachments,
+                replyTo: failedMessage.replyTo,
+                reactions: failedMessage.reactions,
+                isPending: false,
+                isFailed: false,
+                status: "sent" as const,
+            });
+
+            setMessages((prev) => {
+                const exists = prev.some((m) => m.id === realMsg.id);
+                if (exists) {
+                    return prev.map((message) =>
+                        message.id === realMsg.id ? { ...message, status: "sent" as const } : message,
+                    );
+                }
+                return prev.map((message) =>
+                    message.id === tempId ? confirmedMessage : message,
+                );
+            });
+
+            setTimeout(() => {
+                setMessages((prev) =>
+                    prev.map((message) =>
+                        message.id === realMsg.id || message.id === tempId
+                            ? { ...message, status: undefined }
+                            : message,
+                    ),
+                );
+            }, 2000);
+
+        } catch (error) {
+            console.error("Error retrying message:", error);
+            setMessages((prev) =>
+                prev.map((message) =>
+                    message.id === tempId
+                        ? { ...message, isPending: false, isFailed: true, status: "failed" as const }
+                        : message,
+                ),
+            );
+            showToast("Failed to send message", "error");
         }
     };
 
@@ -1108,6 +1226,7 @@ const ChatPage = () => {
                                             );
                                         }}
                                         typingUsers={activeTypingUsernames}
+                                        onRetry={handleRetryMessage}
                                     />
                                     <div ref={messagesEndRef} />
                                     {showNewMessagesBanner && (

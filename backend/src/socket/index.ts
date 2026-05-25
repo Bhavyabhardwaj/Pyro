@@ -36,6 +36,7 @@ export const initializeSocket = (server: HTTPServer) => {
         console.log(`User connected: ${socket.id}`);
 
         const userId = socket.user?.userId;
+        const joinedRooms = new Set<string>();
 
         presenceService.addUser(userId!, socket.id);
         io.emit("onlineUsers", presenceService.getOnlineUsers());
@@ -44,11 +45,13 @@ export const initializeSocket = (server: HTTPServer) => {
 
         socket.on("joinRoom", (roomId: string) => {
             socket.join(roomId);
+            joinedRooms.add(roomId);
             console.log(`User ${socket.id} joined room ${roomId}`);
         });
 
         socket.on("leaveRoom", (roomId: string) => {
             socket.leave(roomId);
+            joinedRooms.delete(roomId);
             console.log(`User ${socket.id} left room ${roomId}`);
         });
         socket.on("typingStart", (roomId: string) => {
@@ -84,8 +87,16 @@ export const initializeSocket = (server: HTTPServer) => {
                 roomId: payload.roomId,
             });
         });
+        socket.on("restoreRooms", (rooms: string[]) => {
+            rooms.forEach(roomId => {   
+                socket.join(roomId);
+                joinedRooms.add(roomId);
+            });
+            console.log(`User ${socket.id} restored rooms: ${rooms.join(", ")}`);
 
-        socket.on("disconnect", () => {
+        });
+
+        socket.on("disconnect", (reason) => {
             const disconnectedUserId = presenceService.removeUser(socket.id);
             if (disconnectedUserId) {
                 io.emit("userOffline", disconnectedUserId);
@@ -93,6 +104,7 @@ export const initializeSocket = (server: HTTPServer) => {
                 console.log(`User ${disconnectedUserId} is offline`);
             }
             console.log(`User disconnected: ${socket.id}`);
+            reason
         });
     });
     return io;
