@@ -44,6 +44,8 @@ const ChatPage = () => {
     const [typingUsersByRoom, setTypingUsersByRoom] = useState<Record<string, Set<string>>>({});
     const [userIdToUsernameMap, setUserIdToUsernameMap] = useState<Record<string, string>>({});
     const [isConnected, setIsConnected] = useState(false);
+    const [isReconnecting, setIsReconnecting] = useState(false);
+    const [lastDisconnectReason, setLastDisconnectReason] = useState<string | null>(null);
     const [isCommandOpen, setIsCommandOpen] = useState(false);
     const [isMobileRoomsOpen, setIsMobileRoomsOpen] = useState(false);
     const [unreadCounts, setUnreadCounts] = useState<Record<string, number>>({});
@@ -346,6 +348,11 @@ const ChatPage = () => {
     useEffect(() => {
         userRef.current = user;
     }, [user]);
+
+    const roomsRef = useRef(rooms);
+    useEffect(() => {
+        roomsRef.current = rooms;
+    }, [rooms]);
 
     // Build userId -> username mapping from messages
     useEffect(() => {
@@ -671,6 +678,36 @@ const ChatPage = () => {
         }
     };
 
+    const resyncLatestMessages = async (roomId: string) => {
+        try {
+            console.log("[reconnect] Resyncing latest messages for room:", roomId);
+            const response = await messageService.getRoomMessages(roomId);
+            const messagesList = response.data?.messages || [];
+            
+            setMessages((prev) => {
+                const optimistic = prev.filter((m) => m.status === "sending" || m.status === "failed" || m.isPending);
+                const syncedIncoming = messagesList.map((m: any) => syncAvatar({ ...m, reactions: m.reactions || [] }));
+                const merged = [...syncedIncoming];
+                
+                optimistic.forEach((optMsg) => {
+                    const duplicate = merged.some(
+                        (m) =>
+                            m.content === optMsg.content &&
+                            m.author.id === optMsg.author.id &&
+                            Math.abs(new Date(m.createdAt || "").getTime() - new Date(optMsg.createdAt || "").getTime()) < 15000
+                    );
+                    if (!duplicate) {
+                        merged.push(optMsg);
+                    }
+                });
+
+                return merged.sort((a, b) => new Date(a.createdAt || "").getTime() - new Date(b.createdAt || "").getTime());
+            });
+        } catch (error) {
+            console.error("Error resyncing messages after reconnect:", error);
+        }
+    };
+
     const fetchOlderMessages = async () => {
         if (!selectedRoom || isFetchingOlderMessages || !hasMore || !nextCursor) return;
         setIsFetchingOlderMessages(true);
@@ -823,15 +860,53 @@ const ChatPage = () => {
         newSocket.on("connect", () => {
             console.log("Socket connected:", newSocket.id);
             setIsConnected(true);
+            setIsReconnecting(false);
+            setLastDisconnectReason(null);
         });
 
         newSocket.on("connect_error", (err) => {
             console.error("Socket connection error:", err.message);
         });
 
-        newSocket.on("disconnect", () => {
+        newSocket.on("disconnect", (reason) => {
+            console.log("Socket disconnected, reason:", reason);
             setIsConnected(false);
             setOnlineUsers(new Set());
+            setLastDisconnectReason(reason);
+            setIsReconnecting(newSocket.active);
+            setTypingUsersByRoom({}); // Stale typing indicator cleanup (Task 6)
+        });
+
+        newSocket.io.on("reconnect_attempt", (attempt) => {
+            console.log("Socket reconnect attempt #", attempt);
+            setIsReconnecting(true);
+        });
+
+        newSocket.io.on("reconnect", (attempt) => {
+            console.log("Socket reconnected successfully on attempt #", attempt);
+            setIsConnected(true);
+            setIsReconnecting(false);
+            setLastDisconnectReason(null);
+            showToast("Reconnected successfully", "success");
+
+            // Restore rooms (Task 4)
+            const roomIds = roomsRef.current.map((r) => r.room.id);
+            if (roomIds.length > 0) {
+                console.log("[reconnect] restoring room subscriptions:", roomIds);
+                newSocket.emit("restoreRooms", roomIds);
+            }
+
+            // Restore active room join
+            if (selectedRoomIdRef.current) {
+                console.log("[reconnect] rejoining active room:", selectedRoomIdRef.current);
+                newSocket.emit("joinRoom", selectedRoomIdRef.current);
+                resyncLatestMessages(selectedRoomIdRef.current);
+            }
+        });
+
+        newSocket.io.on("reconnect_error", (err) => {
+            console.error("Socket reconnect error:", err.message);
+            setIsReconnecting(true);
         });
 
         newSocket.on("onlineUsers", (userIds: string[]) => {
@@ -958,6 +1033,9 @@ const ChatPage = () => {
             newSocket.off("userOffline");
             newSocket.off("userTyping", handleUserTyping);
             newSocket.off("userStopTyping", handleUserStopTyping);
+            newSocket.io.off("reconnect_attempt");
+            newSocket.io.off("reconnect");
+            newSocket.io.off("reconnect_error");
             releaseSocket();
             setIsConnected(false);
             socketRef.current = null;
@@ -1146,6 +1224,23 @@ const ChatPage = () => {
                             currentUser={user}
                             onlineUsers={onlineUsers}
                         />
+                        <AnimatePresence>
+                            {!isConnected && (
+                                <motion.div
+                                    initial={{ height: 0, opacity: 0 }}
+                                    animate={{ height: "auto", opacity: 1 }}
+                                    exit={{ height: 0, opacity: 0 }}
+                                    transition={{ duration: 0.2, ease: "easeInOut" }}
+                                    className="flex w-full overflow-hidden items-center justify-center gap-2 border-b border-amber-500/15 bg-[rgba(245,158,11,0.05)] px-4 py-2 text-center text-[11px] font-medium text-amber-200/95 backdrop-blur-xl"
+                                >
+                                    <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-amber-400" />
+                                    <span>
+                                        Connection lost. {isReconnecting ? "Reconnecting..." : "Disconnected."}
+                                        {lastDisconnectReason && ` [Reason: ${lastDisconnectReason}]`}
+                                    </span>
+                                </motion.div>
+                            )}
+                        </AnimatePresence>
                         <section 
                             ref={scrollContainerRef}
                             onScroll={handleScroll}
