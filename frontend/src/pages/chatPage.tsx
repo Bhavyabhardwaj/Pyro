@@ -354,6 +354,11 @@ const ChatPage = () => {
         roomsRef.current = rooms;
     }, [rooms]);
 
+    const messagesRef = useRef<ChatMessage[]>(messages);
+    useEffect(() => {
+        messagesRef.current = messages;
+    }, [messages]);
+
     // Build userId -> username mapping from messages
     useEffect(() => {
         const mapping: Record<string, string> = {};
@@ -708,6 +713,29 @@ const ChatPage = () => {
         }
     };
 
+    const autoResendFailedMessages = useCallback(async () => {
+        const failed = messagesRef.current.filter((m) => m.status === "failed" || m.isFailed);
+        if (failed.length === 0) return;
+        
+        console.log(`[offline queue] Auto-resending ${failed.length} failed messages...`);
+        
+        for (const failedMsg of failed) {
+            await handleRetryMessage(failedMsg.id);
+        }
+    }, [handleRetryMessage]);
+
+    useEffect(() => {
+        const handleBrowserOnline = () => {
+            console.log("[network] Browser went online, triggering auto-resend of failed messages");
+            autoResendFailedMessages();
+        };
+
+        window.addEventListener("online", handleBrowserOnline);
+        return () => {
+            window.removeEventListener("online", handleBrowserOnline);
+        };
+    }, [autoResendFailedMessages]);
+
     const fetchOlderMessages = async () => {
         if (!selectedRoom || isFetchingOlderMessages || !hasMore || !nextCursor) return;
         setIsFetchingOlderMessages(true);
@@ -902,6 +930,7 @@ const ChatPage = () => {
                 newSocket.emit("joinRoom", selectedRoomIdRef.current);
                 resyncLatestMessages(selectedRoomIdRef.current);
             }
+            autoResendFailedMessages();
         });
 
         newSocket.io.on("reconnect_error", (err) => {

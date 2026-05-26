@@ -131,7 +131,8 @@ export const RoomMemberScalarFieldEnum = {
   userId: 'userId',
   roomId: 'roomId',
   createdAt: 'createdAt',
-  updatedAt: 'updatedAt'
+  updatedAt: 'updatedAt',
+  lastReadMessageId: 'lastReadMessageId'
 } as const
 
 export type RoomMemberScalarFieldEnum = (typeof RoomMemberScalarFieldEnum)[keyof typeof RoomMemberScalarFieldEnum]

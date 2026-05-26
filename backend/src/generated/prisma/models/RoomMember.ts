@@ -30,6 +30,7 @@ export type RoomMemberMinAggregateOutputType = {
   roomId: string | null
   createdAt: Date | null
   updatedAt: Date | null
+  lastReadMessageId: string | null
 }
 
 export type RoomMemberMaxAggregateOutputType = {
@@ -38,6 +39,7 @@ export type RoomMemberMaxAggregateOutputType = {
   roomId: string | null
   createdAt: Date | null
   updatedAt: Date | null
+  lastReadMessageId: string | null
 }
 
 export type RoomMemberCountAggregateOutputType = {
@@ -46,6 +48,7 @@ export type RoomMemberCountAggregateOutputType = {
   roomId: number
   createdAt: number
   updatedAt: number
+  lastReadMessageId: number
   _all: number
 }
 
@@ -56,6 +59,7 @@ export type RoomMemberMinAggregateInputType = {
   roomId?: true
   createdAt?: true
   updatedAt?: true
+  lastReadMessageId?: true
 }
 
 export type RoomMemberMaxAggregateInputType = {
@@ -64,6 +68,7 @@ export type RoomMemberMaxAggregateInputType = {
   roomId?: true
   createdAt?: true
   updatedAt?: true
+  lastReadMessageId?: true
 }
 
 export type RoomMemberCountAggregateInputType = {
@@ -72,6 +77,7 @@ export type RoomMemberCountAggregateInputType = {
   roomId?: true
   createdAt?: true
   updatedAt?: true
+  lastReadMessageId?: true
   _all?: true
 }
 
@@ -153,6 +159,7 @@ export type RoomMemberGroupByOutputType = {
   roomId: string
   createdAt: Date
   updatedAt: Date
+  lastReadMessageId: string | null
   _count: RoomMemberCountAggregateOutputType | null
   _min: RoomMemberMinAggregateOutputType | null
   _max: RoomMemberMaxAggregateOutputType | null
@@ -182,8 +189,10 @@ export type RoomMemberWhereInput = {
   roomId?: Prisma.StringFilter<"RoomMember"> | string
   createdAt?: Prisma.DateTimeFilter<"RoomMember"> | Date | string
   updatedAt?: Prisma.DateTimeFilter<"RoomMember"> | Date | string
+  lastReadMessageId?: Prisma.StringNullableFilter<"RoomMember"> | string | null
   user?: Prisma.XOR<Prisma.UserScalarRelationFilter, Prisma.UserWhereInput>
   room?: Prisma.XOR<Prisma.RoomScalarRelationFilter, Prisma.RoomWhereInput>
+  lastReadMessage?: Prisma.XOR<Prisma.MessageNullableScalarRelationFilter, Prisma.MessageWhereInput> | null
 }
 
 export type RoomMemberOrderByWithRelationInput = {
@@ -192,8 +201,10 @@ export type RoomMemberOrderByWithRelationInput = {
   roomId?: Prisma.SortOrder
   createdAt?: Prisma.SortOrder
   updatedAt?: Prisma.SortOrder
+  lastReadMessageId?: Prisma.SortOrderInput | Prisma.SortOrder
   user?: Prisma.UserOrderByWithRelationInput
   room?: Prisma.RoomOrderByWithRelationInput
+  lastReadMessage?: Prisma.MessageOrderByWithRelationInput
 }
 
 export type RoomMemberWhereUniqueInput = Prisma.AtLeast<{
@@ -206,8 +217,10 @@ export type RoomMemberWhereUniqueInput = Prisma.AtLeast<{
   roomId?: Prisma.StringFilter<"RoomMember"> | string
   createdAt?: Prisma.DateTimeFilter<"RoomMember"> | Date | string
   updatedAt?: Prisma.DateTimeFilter<"RoomMember"> | Date | string
+  lastReadMessageId?: Prisma.StringNullableFilter<"RoomMember"> | string | null
   user?: Prisma.XOR<Prisma.UserScalarRelationFilter, Prisma.UserWhereInput>
   room?: Prisma.XOR<Prisma.RoomScalarRelationFilter, Prisma.RoomWhereInput>
+  lastReadMessage?: Prisma.XOR<Prisma.MessageNullableScalarRelationFilter, Prisma.MessageWhereInput> | null
 }, "id" | "userId_roomId">
 
 export type RoomMemberOrderByWithAggregationInput = {
@@ -216,6 +229,7 @@ export type RoomMemberOrderByWithAggregationInput = {
   roomId?: Prisma.SortOrder
   createdAt?: Prisma.SortOrder
   updatedAt?: Prisma.SortOrder
+  lastReadMessageId?: Prisma.SortOrderInput | Prisma.SortOrder
   _count?: Prisma.RoomMemberCountOrderByAggregateInput
   _max?: Prisma.RoomMemberMaxOrderByAggregateInput
   _min?: Prisma.RoomMemberMinOrderByAggregateInput
@@ -230,6 +244,7 @@ export type RoomMemberScalarWhereWithAggregatesInput = {
   roomId?: Prisma.StringWithAggregatesFilter<"RoomMember"> | string
   createdAt?: Prisma.DateTimeWithAggregatesFilter<"RoomMember"> | Date | string
   updatedAt?: Prisma.DateTimeWithAggregatesFilter<"RoomMember"> | Date | string
+  lastReadMessageId?: Prisma.StringNullableWithAggregatesFilter<"RoomMember"> | string | null
 }
 
 export type RoomMemberCreateInput = {
@@ -238,6 +253,7 @@ export type RoomMemberCreateInput = {
   updatedAt?: Date | string
   user: Prisma.UserCreateNestedOneWithoutRoomMembersInput
   room: Prisma.RoomCreateNestedOneWithoutRoomMembersInput
+  lastReadMessage?: Prisma.MessageCreateNestedOneWithoutReadByMembersInput
 }
 
 export type RoomMemberUncheckedCreateInput = {
@@ -246,6 +262,7 @@ export type RoomMemberUncheckedCreateInput = {
   roomId: string
   createdAt?: Date | string
   updatedAt?: Date | string
+  lastReadMessageId?: string | null
 }
 
 export type RoomMemberUpdateInput = {
@@ -254,6 +271,7 @@ export type RoomMemberUpdateInput = {
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   user?: Prisma.UserUpdateOneRequiredWithoutRoomMembersNestedInput
   room?: Prisma.RoomUpdateOneRequiredWithoutRoomMembersNestedInput
+  lastReadMessage?: Prisma.MessageUpdateOneWithoutReadByMembersNestedInput
 }
 
 export type RoomMemberUncheckedUpdateInput = {
@@ -262,6 +280,7 @@ export type RoomMemberUncheckedUpdateInput = {
   roomId?: Prisma.StringFieldUpdateOperationsInput | string
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  lastReadMessageId?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
 }
 
 export type RoomMemberCreateManyInput = {
@@ -270,6 +289,7 @@ export type RoomMemberCreateManyInput = {
   roomId: string
   createdAt?: Date | string
   updatedAt?: Date | string
+  lastReadMessageId?: string | null
 }
 
 export type RoomMemberUpdateManyMutationInput = {
@@ -284,6 +304,7 @@ export type RoomMemberUncheckedUpdateManyInput = {
   roomId?: Prisma.StringFieldUpdateOperationsInput | string
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  lastReadMessageId?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
 }
 
 export type RoomMemberListRelationFilter = {
@@ -307,6 +328,7 @@ export type RoomMemberCountOrderByAggregateInput = {
   roomId?: Prisma.SortOrder
   createdAt?: Prisma.SortOrder
   updatedAt?: Prisma.SortOrder
+  lastReadMessageId?: Prisma.SortOrder
 }
 
 export type RoomMemberMaxOrderByAggregateInput = {
@@ -315,6 +337,7 @@ export type RoomMemberMaxOrderByAggregateInput = {
   roomId?: Prisma.SortOrder
   createdAt?: Prisma.SortOrder
   updatedAt?: Prisma.SortOrder
+  lastReadMessageId?: Prisma.SortOrder
 }
 
 export type RoomMemberMinOrderByAggregateInput = {
@@ -323,6 +346,7 @@ export type RoomMemberMinOrderByAggregateInput = {
   roomId?: Prisma.SortOrder
   createdAt?: Prisma.SortOrder
   updatedAt?: Prisma.SortOrder
+  lastReadMessageId?: Prisma.SortOrder
 }
 
 export type RoomMemberCreateNestedManyWithoutUserInput = {
@@ -364,6 +388,48 @@ export type RoomMemberUncheckedUpdateManyWithoutUserNestedInput = {
   connect?: Prisma.RoomMemberWhereUniqueInput | Prisma.RoomMemberWhereUniqueInput[]
   update?: Prisma.RoomMemberUpdateWithWhereUniqueWithoutUserInput | Prisma.RoomMemberUpdateWithWhereUniqueWithoutUserInput[]
   updateMany?: Prisma.RoomMemberUpdateManyWithWhereWithoutUserInput | Prisma.RoomMemberUpdateManyWithWhereWithoutUserInput[]
+  deleteMany?: Prisma.RoomMemberScalarWhereInput | Prisma.RoomMemberScalarWhereInput[]
+}
+
+export type RoomMemberCreateNestedManyWithoutLastReadMessageInput = {
+  create?: Prisma.XOR<Prisma.RoomMemberCreateWithoutLastReadMessageInput, Prisma.RoomMemberUncheckedCreateWithoutLastReadMessageInput> | Prisma.RoomMemberCreateWithoutLastReadMessageInput[] | Prisma.RoomMemberUncheckedCreateWithoutLastReadMessageInput[]
+  connectOrCreate?: Prisma.RoomMemberCreateOrConnectWithoutLastReadMessageInput | Prisma.RoomMemberCreateOrConnectWithoutLastReadMessageInput[]
+  createMany?: Prisma.RoomMemberCreateManyLastReadMessageInputEnvelope
+  connect?: Prisma.RoomMemberWhereUniqueInput | Prisma.RoomMemberWhereUniqueInput[]
+}
+
+export type RoomMemberUncheckedCreateNestedManyWithoutLastReadMessageInput = {
+  create?: Prisma.XOR<Prisma.RoomMemberCreateWithoutLastReadMessageInput, Prisma.RoomMemberUncheckedCreateWithoutLastReadMessageInput> | Prisma.RoomMemberCreateWithoutLastReadMessageInput[] | Prisma.RoomMemberUncheckedCreateWithoutLastReadMessageInput[]
+  connectOrCreate?: Prisma.RoomMemberCreateOrConnectWithoutLastReadMessageInput | Prisma.RoomMemberCreateOrConnectWithoutLastReadMessageInput[]
+  createMany?: Prisma.RoomMemberCreateManyLastReadMessageInputEnvelope
+  connect?: Prisma.RoomMemberWhereUniqueInput | Prisma.RoomMemberWhereUniqueInput[]
+}
+
+export type RoomMemberUpdateManyWithoutLastReadMessageNestedInput = {
+  create?: Prisma.XOR<Prisma.RoomMemberCreateWithoutLastReadMessageInput, Prisma.RoomMemberUncheckedCreateWithoutLastReadMessageInput> | Prisma.RoomMemberCreateWithoutLastReadMessageInput[] | Prisma.RoomMemberUncheckedCreateWithoutLastReadMessageInput[]
+  connectOrCreate?: Prisma.RoomMemberCreateOrConnectWithoutLastReadMessageInput | Prisma.RoomMemberCreateOrConnectWithoutLastReadMessageInput[]
+  upsert?: Prisma.RoomMemberUpsertWithWhereUniqueWithoutLastReadMessageInput | Prisma.RoomMemberUpsertWithWhereUniqueWithoutLastReadMessageInput[]
+  createMany?: Prisma.RoomMemberCreateManyLastReadMessageInputEnvelope
+  set?: Prisma.RoomMemberWhereUniqueInput | Prisma.RoomMemberWhereUniqueInput[]
+  disconnect?: Prisma.RoomMemberWhereUniqueInput | Prisma.RoomMemberWhereUniqueInput[]
+  delete?: Prisma.RoomMemberWhereUniqueInput | Prisma.RoomMemberWhereUniqueInput[]
+  connect?: Prisma.RoomMemberWhereUniqueInput | Prisma.RoomMemberWhereUniqueInput[]
+  update?: Prisma.RoomMemberUpdateWithWhereUniqueWithoutLastReadMessageInput | Prisma.RoomMemberUpdateWithWhereUniqueWithoutLastReadMessageInput[]
+  updateMany?: Prisma.RoomMemberUpdateManyWithWhereWithoutLastReadMessageInput | Prisma.RoomMemberUpdateManyWithWhereWithoutLastReadMessageInput[]
+  deleteMany?: Prisma.RoomMemberScalarWhereInput | Prisma.RoomMemberScalarWhereInput[]
+}
+
+export type RoomMemberUncheckedUpdateManyWithoutLastReadMessageNestedInput = {
+  create?: Prisma.XOR<Prisma.RoomMemberCreateWithoutLastReadMessageInput, Prisma.RoomMemberUncheckedCreateWithoutLastReadMessageInput> | Prisma.RoomMemberCreateWithoutLastReadMessageInput[] | Prisma.RoomMemberUncheckedCreateWithoutLastReadMessageInput[]
+  connectOrCreate?: Prisma.RoomMemberCreateOrConnectWithoutLastReadMessageInput | Prisma.RoomMemberCreateOrConnectWithoutLastReadMessageInput[]
+  upsert?: Prisma.RoomMemberUpsertWithWhereUniqueWithoutLastReadMessageInput | Prisma.RoomMemberUpsertWithWhereUniqueWithoutLastReadMessageInput[]
+  createMany?: Prisma.RoomMemberCreateManyLastReadMessageInputEnvelope
+  set?: Prisma.RoomMemberWhereUniqueInput | Prisma.RoomMemberWhereUniqueInput[]
+  disconnect?: Prisma.RoomMemberWhereUniqueInput | Prisma.RoomMemberWhereUniqueInput[]
+  delete?: Prisma.RoomMemberWhereUniqueInput | Prisma.RoomMemberWhereUniqueInput[]
+  connect?: Prisma.RoomMemberWhereUniqueInput | Prisma.RoomMemberWhereUniqueInput[]
+  update?: Prisma.RoomMemberUpdateWithWhereUniqueWithoutLastReadMessageInput | Prisma.RoomMemberUpdateWithWhereUniqueWithoutLastReadMessageInput[]
+  updateMany?: Prisma.RoomMemberUpdateManyWithWhereWithoutLastReadMessageInput | Prisma.RoomMemberUpdateManyWithWhereWithoutLastReadMessageInput[]
   deleteMany?: Prisma.RoomMemberScalarWhereInput | Prisma.RoomMemberScalarWhereInput[]
 }
 
@@ -414,6 +480,7 @@ export type RoomMemberCreateWithoutUserInput = {
   createdAt?: Date | string
   updatedAt?: Date | string
   room: Prisma.RoomCreateNestedOneWithoutRoomMembersInput
+  lastReadMessage?: Prisma.MessageCreateNestedOneWithoutReadByMembersInput
 }
 
 export type RoomMemberUncheckedCreateWithoutUserInput = {
@@ -421,6 +488,7 @@ export type RoomMemberUncheckedCreateWithoutUserInput = {
   roomId: string
   createdAt?: Date | string
   updatedAt?: Date | string
+  lastReadMessageId?: string | null
 }
 
 export type RoomMemberCreateOrConnectWithoutUserInput = {
@@ -458,6 +526,49 @@ export type RoomMemberScalarWhereInput = {
   roomId?: Prisma.StringFilter<"RoomMember"> | string
   createdAt?: Prisma.DateTimeFilter<"RoomMember"> | Date | string
   updatedAt?: Prisma.DateTimeFilter<"RoomMember"> | Date | string
+  lastReadMessageId?: Prisma.StringNullableFilter<"RoomMember"> | string | null
+}
+
+export type RoomMemberCreateWithoutLastReadMessageInput = {
+  id?: string
+  createdAt?: Date | string
+  updatedAt?: Date | string
+  user: Prisma.UserCreateNestedOneWithoutRoomMembersInput
+  room: Prisma.RoomCreateNestedOneWithoutRoomMembersInput
+}
+
+export type RoomMemberUncheckedCreateWithoutLastReadMessageInput = {
+  id?: string
+  userId: string
+  roomId: string
+  createdAt?: Date | string
+  updatedAt?: Date | string
+}
+
+export type RoomMemberCreateOrConnectWithoutLastReadMessageInput = {
+  where: Prisma.RoomMemberWhereUniqueInput
+  create: Prisma.XOR<Prisma.RoomMemberCreateWithoutLastReadMessageInput, Prisma.RoomMemberUncheckedCreateWithoutLastReadMessageInput>
+}
+
+export type RoomMemberCreateManyLastReadMessageInputEnvelope = {
+  data: Prisma.RoomMemberCreateManyLastReadMessageInput | Prisma.RoomMemberCreateManyLastReadMessageInput[]
+  skipDuplicates?: boolean
+}
+
+export type RoomMemberUpsertWithWhereUniqueWithoutLastReadMessageInput = {
+  where: Prisma.RoomMemberWhereUniqueInput
+  update: Prisma.XOR<Prisma.RoomMemberUpdateWithoutLastReadMessageInput, Prisma.RoomMemberUncheckedUpdateWithoutLastReadMessageInput>
+  create: Prisma.XOR<Prisma.RoomMemberCreateWithoutLastReadMessageInput, Prisma.RoomMemberUncheckedCreateWithoutLastReadMessageInput>
+}
+
+export type RoomMemberUpdateWithWhereUniqueWithoutLastReadMessageInput = {
+  where: Prisma.RoomMemberWhereUniqueInput
+  data: Prisma.XOR<Prisma.RoomMemberUpdateWithoutLastReadMessageInput, Prisma.RoomMemberUncheckedUpdateWithoutLastReadMessageInput>
+}
+
+export type RoomMemberUpdateManyWithWhereWithoutLastReadMessageInput = {
+  where: Prisma.RoomMemberScalarWhereInput
+  data: Prisma.XOR<Prisma.RoomMemberUpdateManyMutationInput, Prisma.RoomMemberUncheckedUpdateManyWithoutLastReadMessageInput>
 }
 
 export type RoomMemberCreateWithoutRoomInput = {
@@ -465,6 +576,7 @@ export type RoomMemberCreateWithoutRoomInput = {
   createdAt?: Date | string
   updatedAt?: Date | string
   user: Prisma.UserCreateNestedOneWithoutRoomMembersInput
+  lastReadMessage?: Prisma.MessageCreateNestedOneWithoutReadByMembersInput
 }
 
 export type RoomMemberUncheckedCreateWithoutRoomInput = {
@@ -472,6 +584,7 @@ export type RoomMemberUncheckedCreateWithoutRoomInput = {
   userId: string
   createdAt?: Date | string
   updatedAt?: Date | string
+  lastReadMessageId?: string | null
 }
 
 export type RoomMemberCreateOrConnectWithoutRoomInput = {
@@ -505,6 +618,7 @@ export type RoomMemberCreateManyUserInput = {
   roomId: string
   createdAt?: Date | string
   updatedAt?: Date | string
+  lastReadMessageId?: string | null
 }
 
 export type RoomMemberUpdateWithoutUserInput = {
@@ -512,6 +626,7 @@ export type RoomMemberUpdateWithoutUserInput = {
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   room?: Prisma.RoomUpdateOneRequiredWithoutRoomMembersNestedInput
+  lastReadMessage?: Prisma.MessageUpdateOneWithoutReadByMembersNestedInput
 }
 
 export type RoomMemberUncheckedUpdateWithoutUserInput = {
@@ -519,10 +634,44 @@ export type RoomMemberUncheckedUpdateWithoutUserInput = {
   roomId?: Prisma.StringFieldUpdateOperationsInput | string
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  lastReadMessageId?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
 }
 
 export type RoomMemberUncheckedUpdateManyWithoutUserInput = {
   id?: Prisma.StringFieldUpdateOperationsInput | string
+  roomId?: Prisma.StringFieldUpdateOperationsInput | string
+  createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  lastReadMessageId?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+}
+
+export type RoomMemberCreateManyLastReadMessageInput = {
+  id?: string
+  userId: string
+  roomId: string
+  createdAt?: Date | string
+  updatedAt?: Date | string
+}
+
+export type RoomMemberUpdateWithoutLastReadMessageInput = {
+  id?: Prisma.StringFieldUpdateOperationsInput | string
+  createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  user?: Prisma.UserUpdateOneRequiredWithoutRoomMembersNestedInput
+  room?: Prisma.RoomUpdateOneRequiredWithoutRoomMembersNestedInput
+}
+
+export type RoomMemberUncheckedUpdateWithoutLastReadMessageInput = {
+  id?: Prisma.StringFieldUpdateOperationsInput | string
+  userId?: Prisma.StringFieldUpdateOperationsInput | string
+  roomId?: Prisma.StringFieldUpdateOperationsInput | string
+  createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+}
+
+export type RoomMemberUncheckedUpdateManyWithoutLastReadMessageInput = {
+  id?: Prisma.StringFieldUpdateOperationsInput | string
+  userId?: Prisma.StringFieldUpdateOperationsInput | string
   roomId?: Prisma.StringFieldUpdateOperationsInput | string
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
@@ -533,6 +682,7 @@ export type RoomMemberCreateManyRoomInput = {
   userId: string
   createdAt?: Date | string
   updatedAt?: Date | string
+  lastReadMessageId?: string | null
 }
 
 export type RoomMemberUpdateWithoutRoomInput = {
@@ -540,6 +690,7 @@ export type RoomMemberUpdateWithoutRoomInput = {
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   user?: Prisma.UserUpdateOneRequiredWithoutRoomMembersNestedInput
+  lastReadMessage?: Prisma.MessageUpdateOneWithoutReadByMembersNestedInput
 }
 
 export type RoomMemberUncheckedUpdateWithoutRoomInput = {
@@ -547,6 +698,7 @@ export type RoomMemberUncheckedUpdateWithoutRoomInput = {
   userId?: Prisma.StringFieldUpdateOperationsInput | string
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  lastReadMessageId?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
 }
 
 export type RoomMemberUncheckedUpdateManyWithoutRoomInput = {
@@ -554,6 +706,7 @@ export type RoomMemberUncheckedUpdateManyWithoutRoomInput = {
   userId?: Prisma.StringFieldUpdateOperationsInput | string
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  lastReadMessageId?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
 }
 
 
@@ -564,8 +717,10 @@ export type RoomMemberSelect<ExtArgs extends runtime.Types.Extensions.InternalAr
   roomId?: boolean
   createdAt?: boolean
   updatedAt?: boolean
+  lastReadMessageId?: boolean
   user?: boolean | Prisma.UserDefaultArgs<ExtArgs>
   room?: boolean | Prisma.RoomDefaultArgs<ExtArgs>
+  lastReadMessage?: boolean | Prisma.RoomMember$lastReadMessageArgs<ExtArgs>
 }, ExtArgs["result"]["roomMember"]>
 
 export type RoomMemberSelectCreateManyAndReturn<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = runtime.Types.Extensions.GetSelect<{
@@ -574,8 +729,10 @@ export type RoomMemberSelectCreateManyAndReturn<ExtArgs extends runtime.Types.Ex
   roomId?: boolean
   createdAt?: boolean
   updatedAt?: boolean
+  lastReadMessageId?: boolean
   user?: boolean | Prisma.UserDefaultArgs<ExtArgs>
   room?: boolean | Prisma.RoomDefaultArgs<ExtArgs>
+  lastReadMessage?: boolean | Prisma.RoomMember$lastReadMessageArgs<ExtArgs>
 }, ExtArgs["result"]["roomMember"]>
 
 export type RoomMemberSelectUpdateManyAndReturn<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = runtime.Types.Extensions.GetSelect<{
@@ -584,8 +741,10 @@ export type RoomMemberSelectUpdateManyAndReturn<ExtArgs extends runtime.Types.Ex
   roomId?: boolean
   createdAt?: boolean
   updatedAt?: boolean
+  lastReadMessageId?: boolean
   user?: boolean | Prisma.UserDefaultArgs<ExtArgs>
   room?: boolean | Prisma.RoomDefaultArgs<ExtArgs>
+  lastReadMessage?: boolean | Prisma.RoomMember$lastReadMessageArgs<ExtArgs>
 }, ExtArgs["result"]["roomMember"]>
 
 export type RoomMemberSelectScalar = {
@@ -594,20 +753,24 @@ export type RoomMemberSelectScalar = {
   roomId?: boolean
   createdAt?: boolean
   updatedAt?: boolean
+  lastReadMessageId?: boolean
 }
 
-export type RoomMemberOmit<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = runtime.Types.Extensions.GetOmit<"id" | "userId" | "roomId" | "createdAt" | "updatedAt", ExtArgs["result"]["roomMember"]>
+export type RoomMemberOmit<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = runtime.Types.Extensions.GetOmit<"id" | "userId" | "roomId" | "createdAt" | "updatedAt" | "lastReadMessageId", ExtArgs["result"]["roomMember"]>
 export type RoomMemberInclude<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = {
   user?: boolean | Prisma.UserDefaultArgs<ExtArgs>
   room?: boolean | Prisma.RoomDefaultArgs<ExtArgs>
+  lastReadMessage?: boolean | Prisma.RoomMember$lastReadMessageArgs<ExtArgs>
 }
 export type RoomMemberIncludeCreateManyAndReturn<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = {
   user?: boolean | Prisma.UserDefaultArgs<ExtArgs>
   room?: boolean | Prisma.RoomDefaultArgs<ExtArgs>
+  lastReadMessage?: boolean | Prisma.RoomMember$lastReadMessageArgs<ExtArgs>
 }
 export type RoomMemberIncludeUpdateManyAndReturn<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = {
   user?: boolean | Prisma.UserDefaultArgs<ExtArgs>
   room?: boolean | Prisma.RoomDefaultArgs<ExtArgs>
+  lastReadMessage?: boolean | Prisma.RoomMember$lastReadMessageArgs<ExtArgs>
 }
 
 export type $RoomMemberPayload<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = {
@@ -615,6 +778,7 @@ export type $RoomMemberPayload<ExtArgs extends runtime.Types.Extensions.Internal
   objects: {
     user: Prisma.$UserPayload<ExtArgs>
     room: Prisma.$RoomPayload<ExtArgs>
+    lastReadMessage: Prisma.$MessagePayload<ExtArgs> | null
   }
   scalars: runtime.Types.Extensions.GetPayloadResult<{
     id: string
@@ -622,6 +786,7 @@ export type $RoomMemberPayload<ExtArgs extends runtime.Types.Extensions.Internal
     roomId: string
     createdAt: Date
     updatedAt: Date
+    lastReadMessageId: string | null
   }, ExtArgs["result"]["roomMember"]>
   composites: {}
 }
@@ -1018,6 +1183,7 @@ export interface Prisma__RoomMemberClient<T, Null = never, ExtArgs extends runti
   readonly [Symbol.toStringTag]: "PrismaPromise"
   user<T extends Prisma.UserDefaultArgs<ExtArgs> = {}>(args?: Prisma.Subset<T, Prisma.UserDefaultArgs<ExtArgs>>): Prisma.Prisma__UserClient<runtime.Types.Result.GetResult<Prisma.$UserPayload<ExtArgs>, T, "findUniqueOrThrow", GlobalOmitOptions> | Null, Null, ExtArgs, GlobalOmitOptions>
   room<T extends Prisma.RoomDefaultArgs<ExtArgs> = {}>(args?: Prisma.Subset<T, Prisma.RoomDefaultArgs<ExtArgs>>): Prisma.Prisma__RoomClient<runtime.Types.Result.GetResult<Prisma.$RoomPayload<ExtArgs>, T, "findUniqueOrThrow", GlobalOmitOptions> | Null, Null, ExtArgs, GlobalOmitOptions>
+  lastReadMessage<T extends Prisma.RoomMember$lastReadMessageArgs<ExtArgs> = {}>(args?: Prisma.Subset<T, Prisma.RoomMember$lastReadMessageArgs<ExtArgs>>): Prisma.Prisma__MessageClient<runtime.Types.Result.GetResult<Prisma.$MessagePayload<ExtArgs>, T, "findUniqueOrThrow", GlobalOmitOptions> | null, null, ExtArgs, GlobalOmitOptions>
   /**
    * Attaches callbacks for the resolution and/or rejection of the Promise.
    * @param onfulfilled The callback to execute when the Promise is resolved.
@@ -1052,6 +1218,7 @@ export interface RoomMemberFieldRefs {
   readonly roomId: Prisma.FieldRef<"RoomMember", 'String'>
   readonly createdAt: Prisma.FieldRef<"RoomMember", 'DateTime'>
   readonly updatedAt: Prisma.FieldRef<"RoomMember", 'DateTime'>
+  readonly lastReadMessageId: Prisma.FieldRef<"RoomMember", 'String'>
 }
     
 
@@ -1450,6 +1617,25 @@ export type RoomMemberDeleteManyArgs<ExtArgs extends runtime.Types.Extensions.In
    * Limit how many RoomMembers to delete.
    */
   limit?: number
+}
+
+/**
+ * RoomMember.lastReadMessage
+ */
+export type RoomMember$lastReadMessageArgs<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = {
+  /**
+   * Select specific fields to fetch from the Message
+   */
+  select?: Prisma.MessageSelect<ExtArgs> | null
+  /**
+   * Omit specific fields from the Message
+   */
+  omit?: Prisma.MessageOmit<ExtArgs> | null
+  /**
+   * Choose, which related nodes to fetch as well
+   */
+  include?: Prisma.MessageInclude<ExtArgs> | null
+  where?: Prisma.MessageWhereInput
 }
 
 /**

@@ -208,6 +208,7 @@ export type MessageWhereInput = {
   roomId?: Prisma.StringFilter<"Message"> | string
   author?: Prisma.XOR<Prisma.UserScalarRelationFilter, Prisma.UserWhereInput>
   room?: Prisma.XOR<Prisma.RoomScalarRelationFilter, Prisma.RoomWhereInput>
+  readByMembers?: Prisma.RoomMemberListRelationFilter
   attachments?: Prisma.AttachmentListRelationFilter
 }
 
@@ -222,6 +223,7 @@ export type MessageOrderByWithRelationInput = {
   roomId?: Prisma.SortOrder
   author?: Prisma.UserOrderByWithRelationInput
   room?: Prisma.RoomOrderByWithRelationInput
+  readByMembers?: Prisma.RoomMemberOrderByRelationAggregateInput
   attachments?: Prisma.AttachmentOrderByRelationAggregateInput
 }
 
@@ -239,6 +241,7 @@ export type MessageWhereUniqueInput = Prisma.AtLeast<{
   roomId?: Prisma.StringFilter<"Message"> | string
   author?: Prisma.XOR<Prisma.UserScalarRelationFilter, Prisma.UserWhereInput>
   room?: Prisma.XOR<Prisma.RoomScalarRelationFilter, Prisma.RoomWhereInput>
+  readByMembers?: Prisma.RoomMemberListRelationFilter
   attachments?: Prisma.AttachmentListRelationFilter
 }, "id">
 
@@ -279,6 +282,7 @@ export type MessageCreateInput = {
   isDeleted?: boolean
   author: Prisma.UserCreateNestedOneWithoutMessagesInput
   room: Prisma.RoomCreateNestedOneWithoutMessagesInput
+  readByMembers?: Prisma.RoomMemberCreateNestedManyWithoutLastReadMessageInput
   attachments?: Prisma.AttachmentCreateNestedManyWithoutMessageInput
 }
 
@@ -291,6 +295,7 @@ export type MessageUncheckedCreateInput = {
   isDeleted?: boolean
   authorId: string
   roomId: string
+  readByMembers?: Prisma.RoomMemberUncheckedCreateNestedManyWithoutLastReadMessageInput
   attachments?: Prisma.AttachmentUncheckedCreateNestedManyWithoutMessageInput
 }
 
@@ -303,6 +308,7 @@ export type MessageUpdateInput = {
   isDeleted?: Prisma.BoolFieldUpdateOperationsInput | boolean
   author?: Prisma.UserUpdateOneRequiredWithoutMessagesNestedInput
   room?: Prisma.RoomUpdateOneRequiredWithoutMessagesNestedInput
+  readByMembers?: Prisma.RoomMemberUpdateManyWithoutLastReadMessageNestedInput
   attachments?: Prisma.AttachmentUpdateManyWithoutMessageNestedInput
 }
 
@@ -315,6 +321,7 @@ export type MessageUncheckedUpdateInput = {
   isDeleted?: Prisma.BoolFieldUpdateOperationsInput | boolean
   authorId?: Prisma.StringFieldUpdateOperationsInput | string
   roomId?: Prisma.StringFieldUpdateOperationsInput | string
+  readByMembers?: Prisma.RoomMemberUncheckedUpdateManyWithoutLastReadMessageNestedInput
   attachments?: Prisma.AttachmentUncheckedUpdateManyWithoutMessageNestedInput
 }
 
@@ -395,6 +402,11 @@ export type MessageMinOrderByAggregateInput = {
 export type MessageScalarRelationFilter = {
   is?: Prisma.MessageWhereInput
   isNot?: Prisma.MessageWhereInput
+}
+
+export type MessageNullableScalarRelationFilter = {
+  is?: Prisma.MessageWhereInput | null
+  isNot?: Prisma.MessageWhereInput | null
 }
 
 export type MessageCreateNestedManyWithoutAuthorInput = {
@@ -499,6 +511,22 @@ export type MessageUpdateOneRequiredWithoutAttachmentsNestedInput = {
   update?: Prisma.XOR<Prisma.XOR<Prisma.MessageUpdateToOneWithWhereWithoutAttachmentsInput, Prisma.MessageUpdateWithoutAttachmentsInput>, Prisma.MessageUncheckedUpdateWithoutAttachmentsInput>
 }
 
+export type MessageCreateNestedOneWithoutReadByMembersInput = {
+  create?: Prisma.XOR<Prisma.MessageCreateWithoutReadByMembersInput, Prisma.MessageUncheckedCreateWithoutReadByMembersInput>
+  connectOrCreate?: Prisma.MessageCreateOrConnectWithoutReadByMembersInput
+  connect?: Prisma.MessageWhereUniqueInput
+}
+
+export type MessageUpdateOneWithoutReadByMembersNestedInput = {
+  create?: Prisma.XOR<Prisma.MessageCreateWithoutReadByMembersInput, Prisma.MessageUncheckedCreateWithoutReadByMembersInput>
+  connectOrCreate?: Prisma.MessageCreateOrConnectWithoutReadByMembersInput
+  upsert?: Prisma.MessageUpsertWithoutReadByMembersInput
+  disconnect?: Prisma.MessageWhereInput | boolean
+  delete?: Prisma.MessageWhereInput | boolean
+  connect?: Prisma.MessageWhereUniqueInput
+  update?: Prisma.XOR<Prisma.XOR<Prisma.MessageUpdateToOneWithWhereWithoutReadByMembersInput, Prisma.MessageUpdateWithoutReadByMembersInput>, Prisma.MessageUncheckedUpdateWithoutReadByMembersInput>
+}
+
 export type MessageCreateWithoutAuthorInput = {
   id?: string
   content: string
@@ -507,6 +535,7 @@ export type MessageCreateWithoutAuthorInput = {
   isEdited?: boolean
   isDeleted?: boolean
   room: Prisma.RoomCreateNestedOneWithoutMessagesInput
+  readByMembers?: Prisma.RoomMemberCreateNestedManyWithoutLastReadMessageInput
   attachments?: Prisma.AttachmentCreateNestedManyWithoutMessageInput
 }
 
@@ -518,6 +547,7 @@ export type MessageUncheckedCreateWithoutAuthorInput = {
   isEdited?: boolean
   isDeleted?: boolean
   roomId: string
+  readByMembers?: Prisma.RoomMemberUncheckedCreateNestedManyWithoutLastReadMessageInput
   attachments?: Prisma.AttachmentUncheckedCreateNestedManyWithoutMessageInput
 }
 
@@ -569,6 +599,7 @@ export type MessageCreateWithoutRoomInput = {
   isEdited?: boolean
   isDeleted?: boolean
   author: Prisma.UserCreateNestedOneWithoutMessagesInput
+  readByMembers?: Prisma.RoomMemberCreateNestedManyWithoutLastReadMessageInput
   attachments?: Prisma.AttachmentCreateNestedManyWithoutMessageInput
 }
 
@@ -580,6 +611,7 @@ export type MessageUncheckedCreateWithoutRoomInput = {
   isEdited?: boolean
   isDeleted?: boolean
   authorId: string
+  readByMembers?: Prisma.RoomMemberUncheckedCreateNestedManyWithoutLastReadMessageInput
   attachments?: Prisma.AttachmentUncheckedCreateNestedManyWithoutMessageInput
 }
 
@@ -618,6 +650,7 @@ export type MessageCreateWithoutAttachmentsInput = {
   isDeleted?: boolean
   author: Prisma.UserCreateNestedOneWithoutMessagesInput
   room: Prisma.RoomCreateNestedOneWithoutMessagesInput
+  readByMembers?: Prisma.RoomMemberCreateNestedManyWithoutLastReadMessageInput
 }
 
 export type MessageUncheckedCreateWithoutAttachmentsInput = {
@@ -629,6 +662,7 @@ export type MessageUncheckedCreateWithoutAttachmentsInput = {
   isDeleted?: boolean
   authorId: string
   roomId: string
+  readByMembers?: Prisma.RoomMemberUncheckedCreateNestedManyWithoutLastReadMessageInput
 }
 
 export type MessageCreateOrConnectWithoutAttachmentsInput = {
@@ -656,6 +690,7 @@ export type MessageUpdateWithoutAttachmentsInput = {
   isDeleted?: Prisma.BoolFieldUpdateOperationsInput | boolean
   author?: Prisma.UserUpdateOneRequiredWithoutMessagesNestedInput
   room?: Prisma.RoomUpdateOneRequiredWithoutMessagesNestedInput
+  readByMembers?: Prisma.RoomMemberUpdateManyWithoutLastReadMessageNestedInput
 }
 
 export type MessageUncheckedUpdateWithoutAttachmentsInput = {
@@ -667,6 +702,71 @@ export type MessageUncheckedUpdateWithoutAttachmentsInput = {
   isDeleted?: Prisma.BoolFieldUpdateOperationsInput | boolean
   authorId?: Prisma.StringFieldUpdateOperationsInput | string
   roomId?: Prisma.StringFieldUpdateOperationsInput | string
+  readByMembers?: Prisma.RoomMemberUncheckedUpdateManyWithoutLastReadMessageNestedInput
+}
+
+export type MessageCreateWithoutReadByMembersInput = {
+  id?: string
+  content: string
+  createdAt?: Date | string
+  updatedAt?: Date | string
+  isEdited?: boolean
+  isDeleted?: boolean
+  author: Prisma.UserCreateNestedOneWithoutMessagesInput
+  room: Prisma.RoomCreateNestedOneWithoutMessagesInput
+  attachments?: Prisma.AttachmentCreateNestedManyWithoutMessageInput
+}
+
+export type MessageUncheckedCreateWithoutReadByMembersInput = {
+  id?: string
+  content: string
+  createdAt?: Date | string
+  updatedAt?: Date | string
+  isEdited?: boolean
+  isDeleted?: boolean
+  authorId: string
+  roomId: string
+  attachments?: Prisma.AttachmentUncheckedCreateNestedManyWithoutMessageInput
+}
+
+export type MessageCreateOrConnectWithoutReadByMembersInput = {
+  where: Prisma.MessageWhereUniqueInput
+  create: Prisma.XOR<Prisma.MessageCreateWithoutReadByMembersInput, Prisma.MessageUncheckedCreateWithoutReadByMembersInput>
+}
+
+export type MessageUpsertWithoutReadByMembersInput = {
+  update: Prisma.XOR<Prisma.MessageUpdateWithoutReadByMembersInput, Prisma.MessageUncheckedUpdateWithoutReadByMembersInput>
+  create: Prisma.XOR<Prisma.MessageCreateWithoutReadByMembersInput, Prisma.MessageUncheckedCreateWithoutReadByMembersInput>
+  where?: Prisma.MessageWhereInput
+}
+
+export type MessageUpdateToOneWithWhereWithoutReadByMembersInput = {
+  where?: Prisma.MessageWhereInput
+  data: Prisma.XOR<Prisma.MessageUpdateWithoutReadByMembersInput, Prisma.MessageUncheckedUpdateWithoutReadByMembersInput>
+}
+
+export type MessageUpdateWithoutReadByMembersInput = {
+  id?: Prisma.StringFieldUpdateOperationsInput | string
+  content?: Prisma.StringFieldUpdateOperationsInput | string
+  createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  isEdited?: Prisma.BoolFieldUpdateOperationsInput | boolean
+  isDeleted?: Prisma.BoolFieldUpdateOperationsInput | boolean
+  author?: Prisma.UserUpdateOneRequiredWithoutMessagesNestedInput
+  room?: Prisma.RoomUpdateOneRequiredWithoutMessagesNestedInput
+  attachments?: Prisma.AttachmentUpdateManyWithoutMessageNestedInput
+}
+
+export type MessageUncheckedUpdateWithoutReadByMembersInput = {
+  id?: Prisma.StringFieldUpdateOperationsInput | string
+  content?: Prisma.StringFieldUpdateOperationsInput | string
+  createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  isEdited?: Prisma.BoolFieldUpdateOperationsInput | boolean
+  isDeleted?: Prisma.BoolFieldUpdateOperationsInput | boolean
+  authorId?: Prisma.StringFieldUpdateOperationsInput | string
+  roomId?: Prisma.StringFieldUpdateOperationsInput | string
+  attachments?: Prisma.AttachmentUncheckedUpdateManyWithoutMessageNestedInput
 }
 
 export type MessageCreateManyAuthorInput = {
@@ -687,6 +787,7 @@ export type MessageUpdateWithoutAuthorInput = {
   isEdited?: Prisma.BoolFieldUpdateOperationsInput | boolean
   isDeleted?: Prisma.BoolFieldUpdateOperationsInput | boolean
   room?: Prisma.RoomUpdateOneRequiredWithoutMessagesNestedInput
+  readByMembers?: Prisma.RoomMemberUpdateManyWithoutLastReadMessageNestedInput
   attachments?: Prisma.AttachmentUpdateManyWithoutMessageNestedInput
 }
 
@@ -698,6 +799,7 @@ export type MessageUncheckedUpdateWithoutAuthorInput = {
   isEdited?: Prisma.BoolFieldUpdateOperationsInput | boolean
   isDeleted?: Prisma.BoolFieldUpdateOperationsInput | boolean
   roomId?: Prisma.StringFieldUpdateOperationsInput | string
+  readByMembers?: Prisma.RoomMemberUncheckedUpdateManyWithoutLastReadMessageNestedInput
   attachments?: Prisma.AttachmentUncheckedUpdateManyWithoutMessageNestedInput
 }
 
@@ -729,6 +831,7 @@ export type MessageUpdateWithoutRoomInput = {
   isEdited?: Prisma.BoolFieldUpdateOperationsInput | boolean
   isDeleted?: Prisma.BoolFieldUpdateOperationsInput | boolean
   author?: Prisma.UserUpdateOneRequiredWithoutMessagesNestedInput
+  readByMembers?: Prisma.RoomMemberUpdateManyWithoutLastReadMessageNestedInput
   attachments?: Prisma.AttachmentUpdateManyWithoutMessageNestedInput
 }
 
@@ -740,6 +843,7 @@ export type MessageUncheckedUpdateWithoutRoomInput = {
   isEdited?: Prisma.BoolFieldUpdateOperationsInput | boolean
   isDeleted?: Prisma.BoolFieldUpdateOperationsInput | boolean
   authorId?: Prisma.StringFieldUpdateOperationsInput | string
+  readByMembers?: Prisma.RoomMemberUncheckedUpdateManyWithoutLastReadMessageNestedInput
   attachments?: Prisma.AttachmentUncheckedUpdateManyWithoutMessageNestedInput
 }
 
@@ -759,10 +863,12 @@ export type MessageUncheckedUpdateManyWithoutRoomInput = {
  */
 
 export type MessageCountOutputType = {
+  readByMembers: number
   attachments: number
 }
 
 export type MessageCountOutputTypeSelect<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = {
+  readByMembers?: boolean | MessageCountOutputTypeCountReadByMembersArgs
   attachments?: boolean | MessageCountOutputTypeCountAttachmentsArgs
 }
 
@@ -774,6 +880,13 @@ export type MessageCountOutputTypeDefaultArgs<ExtArgs extends runtime.Types.Exte
    * Select specific fields to fetch from the MessageCountOutputType
    */
   select?: Prisma.MessageCountOutputTypeSelect<ExtArgs> | null
+}
+
+/**
+ * MessageCountOutputType without action
+ */
+export type MessageCountOutputTypeCountReadByMembersArgs<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = {
+  where?: Prisma.RoomMemberWhereInput
 }
 
 /**
@@ -795,6 +908,7 @@ export type MessageSelect<ExtArgs extends runtime.Types.Extensions.InternalArgs 
   roomId?: boolean
   author?: boolean | Prisma.UserDefaultArgs<ExtArgs>
   room?: boolean | Prisma.RoomDefaultArgs<ExtArgs>
+  readByMembers?: boolean | Prisma.Message$readByMembersArgs<ExtArgs>
   attachments?: boolean | Prisma.Message$attachmentsArgs<ExtArgs>
   _count?: boolean | Prisma.MessageCountOutputTypeDefaultArgs<ExtArgs>
 }, ExtArgs["result"]["message"]>
@@ -840,6 +954,7 @@ export type MessageOmit<ExtArgs extends runtime.Types.Extensions.InternalArgs = 
 export type MessageInclude<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = {
   author?: boolean | Prisma.UserDefaultArgs<ExtArgs>
   room?: boolean | Prisma.RoomDefaultArgs<ExtArgs>
+  readByMembers?: boolean | Prisma.Message$readByMembersArgs<ExtArgs>
   attachments?: boolean | Prisma.Message$attachmentsArgs<ExtArgs>
   _count?: boolean | Prisma.MessageCountOutputTypeDefaultArgs<ExtArgs>
 }
@@ -857,6 +972,7 @@ export type $MessagePayload<ExtArgs extends runtime.Types.Extensions.InternalArg
   objects: {
     author: Prisma.$UserPayload<ExtArgs>
     room: Prisma.$RoomPayload<ExtArgs>
+    readByMembers: Prisma.$RoomMemberPayload<ExtArgs>[]
     attachments: Prisma.$AttachmentPayload<ExtArgs>[]
   }
   scalars: runtime.Types.Extensions.GetPayloadResult<{
@@ -1264,6 +1380,7 @@ export interface Prisma__MessageClient<T, Null = never, ExtArgs extends runtime.
   readonly [Symbol.toStringTag]: "PrismaPromise"
   author<T extends Prisma.UserDefaultArgs<ExtArgs> = {}>(args?: Prisma.Subset<T, Prisma.UserDefaultArgs<ExtArgs>>): Prisma.Prisma__UserClient<runtime.Types.Result.GetResult<Prisma.$UserPayload<ExtArgs>, T, "findUniqueOrThrow", GlobalOmitOptions> | Null, Null, ExtArgs, GlobalOmitOptions>
   room<T extends Prisma.RoomDefaultArgs<ExtArgs> = {}>(args?: Prisma.Subset<T, Prisma.RoomDefaultArgs<ExtArgs>>): Prisma.Prisma__RoomClient<runtime.Types.Result.GetResult<Prisma.$RoomPayload<ExtArgs>, T, "findUniqueOrThrow", GlobalOmitOptions> | Null, Null, ExtArgs, GlobalOmitOptions>
+  readByMembers<T extends Prisma.Message$readByMembersArgs<ExtArgs> = {}>(args?: Prisma.Subset<T, Prisma.Message$readByMembersArgs<ExtArgs>>): Prisma.PrismaPromise<runtime.Types.Result.GetResult<Prisma.$RoomMemberPayload<ExtArgs>, T, "findMany", GlobalOmitOptions> | Null>
   attachments<T extends Prisma.Message$attachmentsArgs<ExtArgs> = {}>(args?: Prisma.Subset<T, Prisma.Message$attachmentsArgs<ExtArgs>>): Prisma.PrismaPromise<runtime.Types.Result.GetResult<Prisma.$AttachmentPayload<ExtArgs>, T, "findMany", GlobalOmitOptions> | Null>
   /**
    * Attaches callbacks for the resolution and/or rejection of the Promise.
@@ -1700,6 +1817,30 @@ export type MessageDeleteManyArgs<ExtArgs extends runtime.Types.Extensions.Inter
    * Limit how many Messages to delete.
    */
   limit?: number
+}
+
+/**
+ * Message.readByMembers
+ */
+export type Message$readByMembersArgs<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = {
+  /**
+   * Select specific fields to fetch from the RoomMember
+   */
+  select?: Prisma.RoomMemberSelect<ExtArgs> | null
+  /**
+   * Omit specific fields from the RoomMember
+   */
+  omit?: Prisma.RoomMemberOmit<ExtArgs> | null
+  /**
+   * Choose, which related nodes to fetch as well
+   */
+  include?: Prisma.RoomMemberInclude<ExtArgs> | null
+  where?: Prisma.RoomMemberWhereInput
+  orderBy?: Prisma.RoomMemberOrderByWithRelationInput | Prisma.RoomMemberOrderByWithRelationInput[]
+  cursor?: Prisma.RoomMemberWhereUniqueInput
+  take?: number
+  skip?: number
+  distinct?: Prisma.RoomMemberScalarFieldEnum | Prisma.RoomMemberScalarFieldEnum[]
 }
 
 /**

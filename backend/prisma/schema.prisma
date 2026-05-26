@@ -38,6 +38,7 @@ model Message {
 
   roomId String
   room   Room     @relation(fields: [roomId], references: [id], onDelete: Cascade)
+  readByMembers RoomMember[] @relation("LastReadMessage")
 
   attachments Attachment[]
 
@@ -76,9 +77,11 @@ model RoomMember {
   roomId    String
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+  lastReadMessageId String?
 
   user User @relation(fields: [userId], references: [id])
   room Room @relation(fields: [roomId], references: [id], onDelete: Cascade)
+  lastReadMessage Message? @relation("LastReadMessage", fields: [lastReadMessageId], references: [id])
 
   @@unique([userId, roomId])
   @@index([roomId])
