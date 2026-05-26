@@ -4,9 +4,13 @@ interface RedirectableAPI extends AxiosInstance {
     _hasRedirected?: boolean;
 }
 
+let rawBaseURL = import.meta.env.VITE_API_URL || "https://api.bhavy4.tech/api";
+if (rawBaseURL && !rawBaseURL.endsWith("/api") && !rawBaseURL.endsWith("/api/")) {
+    rawBaseURL = rawBaseURL.replace(/\/$/, "") + "/api";
+}
+
 export const api = axios.create({
-    baseURL:
-        import.meta.env.VITE_API_URL || "https://api.bhavy4.tech/api",
+    baseURL: rawBaseURL,
 }) as RedirectableAPI;
 
 api.interceptors.request.use(

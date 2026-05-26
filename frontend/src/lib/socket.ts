@@ -14,7 +14,10 @@ export function connectSocket(token: string): Socket {
         refCount += 1;
         return socket;
     }
-    socket = io("http://localhost:5000", {
+    const socketURL = import.meta.env.VITE_SOCKET_URL || 
+        (import.meta.env.VITE_API_URL ? import.meta.env.VITE_API_URL.replace(/\/api\/?$/, "") : "http://localhost:5000");
+
+    socket = io(socketURL, {
         auth: { token },
     });
     refCount = 1;
