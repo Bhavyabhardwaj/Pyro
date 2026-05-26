@@ -34,6 +34,15 @@ export const roomController = {
             next(error);
         }
     },
+    async getDiscoverRooms(req: Request, res: Response, next: NextFunction) {
+        try {
+            const userId = (req as any).user?.userId;
+            const rooms = await roomService.getDiscoverRooms(userId);
+            return responseUtils.success(res, rooms, "Discoverable rooms retrieved successfully");
+        } catch (error) {
+            next(error);
+        }
+    },
     async joinRoom(req: Request<{ roomId: string }>, res: Response, next: NextFunction) {
         try {
             const roomId = req.params.roomId;

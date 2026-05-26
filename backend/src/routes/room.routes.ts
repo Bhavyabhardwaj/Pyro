@@ -8,6 +8,7 @@ const router = Router();
 
 router.post("/", authMiddleware, roomController.createRoom);
 router.get("/", authMiddleware, roomController.getRooms);
+router.get("/discover", authMiddleware, roomController.getDiscoverRooms);
 router.post("/dm", authMiddleware, roomController.createDM);
 router.post("/:roomId/join", authMiddleware, roomController.joinRoom);
 

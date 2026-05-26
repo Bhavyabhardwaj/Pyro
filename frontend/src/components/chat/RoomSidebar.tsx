@@ -5,7 +5,8 @@ import {
   X,
   Search,
   UserMinus,
-  UserPlus
+  UserPlus,
+  Compass
 } from "lucide-react";
 import { AnimatePresence, motion } from "framer-motion";
 import { useEffect, useMemo, useRef, useState } from "react";
@@ -59,6 +60,7 @@ export function RoomSidebar({
   onlineUsersCount = 0,
   onlineUsers = new Set<string>(),
   typingUsersByRoom = {},
+  discoverRooms = [],
   onRoomFilterChange,
   onNewRoomNameChange,
   onCreateRoom,
@@ -70,6 +72,7 @@ export function RoomSidebar({
   onAvatarChange,
   onLogout,
   onCreateDM,
+  onJoinRoom,
 }: {
   rooms: RoomMember[];
   selectedRoom: Room | null;
@@ -84,6 +87,7 @@ export function RoomSidebar({
   onlineUsersCount?: number;
   onlineUsers?: Set<string>;
   typingUsersByRoom?: Record<string, Set<string>>;
+  discoverRooms?: Room[];
   onRoomFilterChange: (value: string) => void;
   onNewRoomNameChange: (value: string) => void;
   onCreateRoom: () => void;
@@ -95,6 +99,7 @@ export function RoomSidebar({
   onAvatarChange: (avatarUrl: string) => void;
   onLogout: () => void;
   onCreateDM?: (targetUserId: string) => Promise<void>;
+  onJoinRoom: (roomId: string) => Promise<void>;
 }) {
   const [menuRoomId, setMenuRoomId] = useState<string | null>(null);
   const [menuAnchor, setMenuAnchor] = useState<{ roomId: string; x: number; y: number } | null>(null);
@@ -108,6 +113,18 @@ export function RoomSidebar({
   const [selectedUserIndex, setSelectedUserIndex] = useState(0);
   const dmModalRef = useRef<HTMLDivElement | null>(null);
   const dmSearchInputRef = useRef<HTMLInputElement | null>(null);
+
+  // Browse Channels Modal States
+  const [isBrowseModalOpen, setIsBrowseModalOpen] = useState(false);
+  const [browseSearchQuery, setBrowseSearchQuery] = useState("");
+  const browseModalRef = useRef<HTMLDivElement | null>(null);
+  const browseSearchInputRef = useRef<HTMLInputElement | null>(null);
+
+  useEffect(() => {
+    if (!isBrowseModalOpen) return;
+    setBrowseSearchQuery("");
+    setTimeout(() => browseSearchInputRef.current?.focus(), 100);
+  }, [isBrowseModalOpen]);
 
   // Fetch workspace users when the DM modal is opened
   useEffect(() => {
@@ -189,6 +206,24 @@ export function RoomSidebar({
     });
   }, [dmUsers, dmSearchQuery, onlineUsers]);
 
+  const filteredDiscoverRooms = useMemo(() => {
+    const query = roomFilter.trim().toLowerCase();
+    if (!query) return [];
+    return discoverRooms.filter((room) => {
+      if (room.isDM) return false;
+      const isMember = rooms.some((r) => r.room.id === room.id);
+      if (isMember) return false;
+      return room.name.toLowerCase().includes(query);
+    });
+  }, [roomFilter, discoverRooms, rooms]);
+
+  const filteredBrowseRooms = useMemo(() => {
+    const query = browseSearchQuery.trim().toLowerCase();
+    const publicRooms = discoverRooms.filter((r) => !r.isDM);
+    if (!query) return publicRooms;
+    return publicRooms.filter((r) => r.name.toLowerCase().includes(query));
+  }, [browseSearchQuery, discoverRooms]);
+
   // Keyboard navigation inside Start DM Modal
   useEffect(() => {
     if (!isStartDMOpen || filteredDmUsers.length === 0) return;
@@ -242,6 +277,7 @@ export function RoomSidebar({
   const renderRoomRow = (room: Room, index: number, isDM: boolean) => {
     const active = selectedRoom?.id === room.id;
     const unreadCount = unreadCounts[room.id] || 0;
+    const displayUnread = unreadCount > 99 ? "99+" : unreadCount;
 
     // Resolve details dynamically based on whether it is a DM or Channel
     let displayName = room.name;
@@ -366,7 +402,7 @@ export function RoomSidebar({
               animate={{ scale: 1 }}
               className="rounded-full bg-teal-500/20 px-1.5 py-0.5 text-[8.5px] font-semibold text-[var(--accent-teal)]"
             >
-              {unreadCount}
+              {displayUnread}
             </motion.span>
           )}
 
@@ -473,23 +509,49 @@ export function RoomSidebar({
               <Skeleton key={item} className="h-10 rounded-lg bg-[var(--bg-charcoal)]" />
             ))}
           </div>
-        ) : filteredRooms.length === 0 ? (
-          <div className="m-2 rounded-xl border border-dashed border-[var(--border-muted)] p-4 text-center text-xs text-[var(--text-muted)] leading-relaxed bg-[var(--bg-charcoal)]">
-            No matches. Start a channel or DM to begin.
+        ) : (filteredRooms.length === 0 && filteredDiscoverRooms.length === 0) ? (
+          <div className="m-2 rounded-xl border border-dashed border-[var(--border-muted)] p-4 text-center text-xs text-[var(--text-muted)] leading-relaxed bg-[var(--bg-charcoal)] space-y-2.5">
+            <div>No matches. Start a channel or DM to begin.</div>
+            <Button
+              variant="secondary"
+              size="sm"
+              className="h-7 mx-auto flex items-center gap-1 rounded bg-[var(--bg-graphite)] border border-[var(--border-muted)] hover:bg-[var(--bg-graphite-light)] text-[10px] text-[var(--text-secondary)] hover:text-white"
+              onClick={() => setIsBrowseModalOpen(true)}
+            >
+              <Compass className="h-3 w-3" />
+              Browse Public Channels
+            </Button>
           </div>
         ) : (
           <>
             {/* CHANNELS SECTION */}
-            {channels.length > 0 && (
+            {(channels.length > 0 || !roomFilter.trim()) && (
               <div>
                 <div className="mb-1 flex items-center justify-between px-2 pt-1">
                   <span className="text-[9.5px] font-bold uppercase tracking-[0.12em] text-[var(--text-muted)]">
                     Channels
                   </span>
-                  <span className="text-[9px] text-[var(--text-muted)]">{channels.length}</span>
+                  <button
+                    type="button"
+                    onClick={() => setIsBrowseModalOpen(true)}
+                    className="flex items-center gap-0.5 text-[9px] font-medium text-[var(--text-secondary)] hover:text-white transition duration-150"
+                  >
+                    <Compass className="h-2.5 w-2.5" />
+                    Browse
+                  </button>
                 </div>
                 <div className="space-y-0.5">
-                  {channels.map((rm, idx) => renderRoomRow(rm.room, idx, false))}
+                  {channels.length === 0 ? (
+                    <div
+                      onClick={() => setIsBrowseModalOpen(true)}
+                      className="flex w-full items-center gap-2 rounded-lg px-2.5 py-2 text-left text-[11px] text-[var(--text-muted)] hover:bg-white/4 cursor-pointer transition"
+                    >
+                      <Compass className="h-3.5 w-3.5" />
+                      <span>Browse public channels...</span>
+                    </div>
+                  ) : (
+                    channels.map((rm, idx) => renderRoomRow(rm.room, idx, false))
+                  )}
                 </div>
               </div>
             )}
@@ -505,6 +567,43 @@ export function RoomSidebar({
                 </div>
                 <div className="space-y-0.5">
                   {dms.map((rm, idx) => renderRoomRow(rm.room, idx, true))}
+                </div>
+              </div>
+            )}
+
+            {/* DISCOVERABLE CHANNELS SECTION (SEARCH MATCHES) */}
+            {filteredDiscoverRooms.length > 0 && (
+              <div>
+                <div className="mb-1 flex items-center justify-between px-2 pt-1">
+                  <span className="text-[9.5px] font-bold uppercase tracking-[0.12em] text-[var(--text-muted)]">
+                    Public Channels to Join
+                  </span>
+                  <span className="text-[9px] text-[var(--text-muted)]">{filteredDiscoverRooms.length}</span>
+                </div>
+                <div className="space-y-0.5">
+                  {filteredDiscoverRooms.map((room) => (
+                    <motion.div
+                      key={room.id}
+                      initial={{ opacity: 0, y: 3 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      className="group flex w-full items-center justify-between gap-2.5 rounded-lg px-2.5 py-1.5 text-left text-[11.5px] font-medium transition duration-150 ease-out hover:bg-white/4 text-[var(--text-secondary)] hover:text-white"
+                    >
+                      <div className="flex min-w-0 flex-1 items-center gap-2">
+                        <span className="flex h-5 w-5 items-center justify-center rounded border border-[var(--border-muted)] bg-[var(--bg-charcoal)] text-[10px] text-[var(--text-muted)]">
+                          #
+                        </span>
+                        <span className="truncate">{room.name}</span>
+                      </div>
+                      <Button
+                        size="sm"
+                        variant="secondary"
+                        onClick={() => onJoinRoom(room.id)}
+                        className="h-5 px-2 rounded text-[10px] bg-[var(--bg-charcoal)] hover:bg-[var(--bg-graphite-light)] border border-[var(--border-muted)] text-[var(--text-secondary)] hover:text-white opacity-90 group-hover:opacity-100 transition"
+                      >
+                        Join
+                      </Button>
+                    </motion.div>
+                  ))}
                 </div>
               </div>
             )}
@@ -698,6 +797,107 @@ export function RoomSidebar({
                           <span className="rounded-full bg-emerald-500/20 px-1 py-0.5 text-[8px] font-semibold text-emerald-400">
                             Online
                           </span>
+                        )}
+                      </div>
+                    );
+                  })
+                )}
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* BROWSE CHANNELS MODAL (Premium Glassmorphism Overlay) */}
+      <AnimatePresence>
+        {isBrowseModalOpen && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="absolute inset-0 z-30 flex items-center justify-center bg-black/60 backdrop-blur-sm p-3"
+            onClick={() => setIsBrowseModalOpen(false)}
+          >
+            <motion.div
+              ref={browseModalRef}
+              initial={{ opacity: 0, y: 8, scale: 0.98 }}
+              animate={{ opacity: 1, y: 0, scale: 1 }}
+              exit={{ opacity: 0, y: 8, scale: 0.98 }}
+              onClick={(event) => event.stopPropagation()}
+              className="w-full max-w-[290px] h-[360px] flex flex-col rounded-xl border border-[var(--border-subtle)] bg-[rgba(22,22,21,0.92)] p-4 shadow-2xl shadow-black/80 backdrop-blur-md"
+            >
+              <div className="flex items-center justify-between shrink-0 mb-3">
+                <div>
+                  <h3 className="text-xs font-semibold text-[var(--text-primary)] flex items-center gap-1">
+                    <Compass className="h-3.5 w-3.5 text-[var(--text-secondary)]" />
+                    Browse Channels
+                  </h3>
+                  <p className="mt-0.5 text-[10px] text-[var(--text-muted)]">
+                    Find and join public channels.
+                  </p>
+                </div>
+                <motion.button
+                  type="button"
+                  whileHover={{ scale: 1.05 }}
+                  whileTap={{ scale: 0.95 }}
+                  onClick={() => setIsBrowseModalOpen(false)}
+                  className="flex h-6 w-6 items-center justify-center rounded text-[var(--text-muted)] hover:bg-white/5 hover:text-[var(--text-primary)]"
+                  aria-label="Close"
+                >
+                  <X className="h-3 w-3" />
+                </motion.button>
+              </div>
+
+              {/* Browse Search input */}
+              <div className="relative shrink-0 mb-2">
+                <Search className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-[var(--text-muted)]" />
+                <Input
+                  ref={browseSearchInputRef}
+                  value={browseSearchQuery}
+                  onChange={(e) => setBrowseSearchQuery(e.target.value)}
+                  placeholder="Search channels..."
+                  className="h-8 pl-8 text-xs bg-[var(--bg-charcoal)] border-[var(--border-muted)] placeholder:text-[var(--text-muted)] focus:border-[var(--border-subtle)]"
+                />
+              </div>
+
+              {/* Browse Channels selector list */}
+              <div className="flex-1 min-h-0 overflow-y-auto timeline-scrollbar space-y-1 p-0.5">
+                {filteredBrowseRooms.length === 0 ? (
+                  <div className="py-12 text-center text-[10.5px] text-[var(--text-muted)]">
+                    No channels found
+                  </div>
+                ) : (
+                  filteredBrowseRooms.map((room) => {
+                    const isJoined = rooms.some((rm) => rm.room.id === room.id);
+                    return (
+                      <div
+                        key={room.id}
+                        className="flex items-center justify-between gap-3 rounded-lg p-2 transition bg-[rgba(255,255,255,0.015)] border border-white/2"
+                      >
+                        <div className="min-w-0 flex-1">
+                          <div className="flex items-center gap-1 text-[11px] font-medium text-[var(--text-primary)]">
+                            <span className="text-[var(--text-muted)]">#</span>
+                            <span className="truncate">{room.name}</span>
+                          </div>
+                          <span className="block text-[8.5px] text-[var(--text-muted)] mt-0.5">
+                            {room.roomMembers?.length || 1} teammates
+                          </span>
+                        </div>
+                        {isJoined ? (
+                          <span className="text-[9px] font-medium text-[var(--text-muted)] bg-white/5 border border-white/5 px-2 py-0.5 rounded">
+                            Joined
+                          </span>
+                        ) : (
+                          <Button
+                            size="sm"
+                            onClick={() => {
+                              onJoinRoom(room.id);
+                              setIsBrowseModalOpen(false);
+                            }}
+                            className="h-5 px-2.5 rounded text-[9.5px] bg-white text-black hover:bg-zinc-200 transition font-normal"
+                          >
+                            Join
+                          </Button>
                         )}
                       </div>
                     );

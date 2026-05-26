@@ -33,7 +33,12 @@ export interface Room {
   } | null;
   roomMembers?: {
     user: User;
+    userId?: string;
+    roomId?: string;
+    lastReadMessageId?: string | null;
+    lastReadMessage?: Message | null;
   }[];
+  unreadCount?: number;
 }
 
 export interface RoomMember {
@@ -67,4 +72,3 @@ export interface Message {
   isEdited?: boolean;
   isDeleted?: boolean;
 }
-

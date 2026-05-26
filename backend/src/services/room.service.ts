@@ -18,13 +18,49 @@ export const roomService = {
                 name: roomName,
             }
         });
+
+        // Add ONLY the creator to the new channel initially
         await prisma.roomMember.create({
             data: {
                 roomId: room.id,
-                userId,
-            },
+                userId: userId,
+            }
         });
-        return room;
+
+        const fullRoom = await prisma.room.findUnique({
+            where: { id: room.id },
+            include: {
+                roomMembers: {
+                    include: {
+                        user: {
+                            select: {
+                                id: true,
+                                username: true,
+                                avatar: true,
+                            }
+                        },
+                        lastReadMessage: true
+                    }
+                },
+                messages: {
+                    orderBy: {
+                        createdAt: "desc"
+                    },
+                    take: 1,
+                    include: {
+                        author: {
+                            select: {
+                                id: true,
+                                username: true,
+                                avatar: true,
+                            }
+                        }
+                    }
+                }
+            }
+        });
+
+        return fullRoom!;
     },
     async getRooms(userId: string) {
         const rooms = await prisma.roomMember.findMany({
@@ -229,6 +265,53 @@ export const roomService = {
             },
         });
         return roomMember;
+    },
+    async getDiscoverRooms(userId: string) {
+        const rooms = await prisma.room.findMany({
+            where: {
+                isDM: false
+            },
+            include: {
+                roomMembers: {
+                    include: {
+                        user: {
+                            select: {
+                                id: true,
+                                username: true,
+                                avatar: true,
+                            }
+                        },
+                        lastReadMessage: true
+                    }
+                },
+                messages: {
+                    orderBy: {
+                        createdAt: "desc"
+                    },
+                    take: 1,
+                    include: {
+                        author: {
+                            select: {
+                                id: true,
+                                username: true,
+                                avatar: true,
+                            }
+                        }
+                    }
+                }
+            },
+            orderBy: {
+                createdAt: "desc"
+            }
+        });
+
+        return rooms.map(room => {
+            const isMember = room.roomMembers.some(m => m.userId === userId);
+            return {
+                ...room,
+                isMember
+            };
+        });
     }
 };
 

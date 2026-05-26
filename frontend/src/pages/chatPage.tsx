@@ -30,6 +30,7 @@ const ChatPage = () => {
         };
     }, []);
     const [rooms, setRooms] = useState<RoomMember[]>([]);
+    const [discoverRooms, setDiscoverRooms] = useState<Room[]>([]);
     const [roomFilter, setRoomFilter] = useState("");
     const [newRoomName, setNewRoomName] = useState("");
     const [selectedRoom, setSelectedRoom] = useState<Room | null>(null);
@@ -46,6 +47,7 @@ const ChatPage = () => {
     const [isConnected, setIsConnected] = useState(false);
     const [isReconnecting, setIsReconnecting] = useState(false);
     const [lastDisconnectReason, setLastDisconnectReason] = useState<string | null>(null);
+    const [lastReadByUser, setLastReadByUser] = useState<Record<string, { messageId: string; createdAt: string }>>({});
     const [isCommandOpen, setIsCommandOpen] = useState(false);
     const [isMobileRoomsOpen, setIsMobileRoomsOpen] = useState(false);
     const [unreadCounts, setUnreadCounts] = useState<Record<string, number>>({});
@@ -359,6 +361,10 @@ const ChatPage = () => {
         messagesRef.current = messages;
     }, [messages]);
 
+    const isNearBottomRef = useRef(true);
+    const markAsReadTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+    const lastMarkedMessageIdRef = useRef<Record<string, string>>({});
+
     // Build userId -> username mapping from messages
     useEffect(() => {
         const mapping: Record<string, string> = {};
@@ -442,6 +448,31 @@ const ChatPage = () => {
             }
         } catch (error) {
             console.error("Error creating DM room:", error);
+        }
+    };
+
+    const handleJoinRoom = async (roomId: string) => {
+        try {
+            const joinRes = await roomService.joinRoom(roomId);
+            if (joinRes.success) {
+                const roomsResponse = await roomService.getRooms();
+                setRooms(roomsResponse.data);
+
+                const joinedRoom = roomsResponse.data.find((rm: any) => rm.room.id === roomId)?.room;
+                if (joinedRoom) {
+                    setSelectedRoom(joinedRoom);
+                    if (socketRef.current) {
+                        socketRef.current.emit("joinRoom", roomId);
+                    }
+                }
+
+                const discoverResponse = await roomService.getDiscoverRooms();
+                if (discoverResponse.success && discoverResponse.data) {
+                    setDiscoverRooms(discoverResponse.data);
+                }
+            }
+        } catch (error) {
+            console.error("Error joining room:", error);
         }
     };
 
@@ -762,6 +793,7 @@ const ChatPage = () => {
 
                 setNextCursor(response.data?.nextCursor ?? null);
                 setHasMore(response.data?.hasMore ?? false);
+                processReadStates(response.data?.readStates || [], messagesList);
 
                 if (container) {
                     requestAnimationFrame(() => {
@@ -800,10 +832,34 @@ const ChatPage = () => {
                     if (areRoomListsEqual(prev, response.data)) return prev;
                     return response.data;
                 });
+                
+                const initialUnreads: Record<string, number> = {};
+                response.data.forEach((membership: any) => {
+                    const r = membership.room;
+                    initialUnreads[r.id] = r.unreadCount || 0;
+                });
+                setUnreadCounts((prev) => {
+                    const next = { ...initialUnreads, ...prev };
+                    if (selectedRoomIdRef.current) {
+                        next[selectedRoomIdRef.current] = 0;
+                    }
+                    return next;
+                });
+
                 if (response.data.length > 0 && selectedRoom?.id !== response.data[0].room.id) {
                     setSelectedRoom(response.data[0].room);
                 }
                 setRoomsError(null);
+
+                // Fetch discoverable channels
+                try {
+                    const discoverResponse = await roomService.getDiscoverRooms();
+                    if (discoverResponse.success && discoverResponse.data) {
+                        setDiscoverRooms(discoverResponse.data);
+                    }
+                } catch (err) {
+                    console.error("Error fetching discoverable rooms:", err);
+                }
             } catch (error) {
                 console.error("Error fetching rooms:", error);
                 const status = (error as any)?.response?.status;
@@ -858,6 +914,7 @@ const ChatPage = () => {
                 setNextCursor(response.data?.nextCursor ?? null);
                 setHasMore(response.data?.hasMore ?? false);
                 setUnreadCounts((prev) => ({ ...prev, [selectedRoom.id]: 0 }));
+                processReadStates(response.data?.readStates || [], messagesList);
                 setMessagesError(null);
             } catch (error) {
                 console.error("Error fetching messages:", error);
@@ -930,6 +987,29 @@ const ChatPage = () => {
                 newSocket.emit("joinRoom", selectedRoomIdRef.current);
                 resyncLatestMessages(selectedRoomIdRef.current);
             }
+
+            // Refresh rooms to get latest unread counts and last messages after offline period
+            roomService.getRooms().then((res) => {
+                setRooms((prev) => {
+                    if (areRoomListsEqual(prev, res.data)) return prev;
+                    return res.data;
+                });
+                const initialUnreads: Record<string, number> = {};
+                res.data.forEach((membership: any) => {
+                    const r = membership.room;
+                    initialUnreads[r.id] = r.unreadCount || 0;
+                });
+                setUnreadCounts((prev) => {
+                    const next = { ...initialUnreads, ...prev };
+                    if (selectedRoomIdRef.current) {
+                        next[selectedRoomIdRef.current] = 0;
+                    }
+                    return next;
+                });
+            }).catch(err => {
+                console.error("[reconnect] Failed to refresh rooms:", err);
+            });
+
             autoResendFailedMessages();
         });
 
@@ -964,25 +1044,79 @@ const ChatPage = () => {
 
         newSocket.on("newMessage", (message: ChatMessage) => {
             const roomId = message.roomId;
+            if (roomId) {
+                // Update the lastMessage preview for the room in rooms state immutably to preserve order
+                setRooms((prev) =>
+                    prev.map((r) => {
+                        if (r.room.id !== roomId) return r;
+                        return {
+                            ...r,
+                            room: {
+                                ...r.room,
+                                lastMessage: {
+                                    id: message.id,
+                                    content: message.content,
+                                    createdAt: message.createdAt || new Date().toISOString(),
+                                    author: {
+                                        id: message.author.id || "",
+                                        username: message.author.username,
+                                        avatar: message.author.avatar,
+                                    },
+                                },
+                            },
+                        };
+                    })
+                );
+            }
+
             if (roomId && selectedRoomIdRef.current !== roomId) {
-                setUnreadCounts((prev) => ({
-                    ...prev,
-                    [roomId]: (prev[roomId] || 0) + 1,
-                }));
+                // Increment unread count locally ONLY if current user is not viewing room AND message author is not current user
+                if (message.author.id !== userRef.current?.id) {
+                    setUnreadCounts((prev) => ({
+                        ...prev,
+                        [roomId]: (prev[roomId] || 0) + 1,
+                    }));
+                }
                 return;
             }
             incomingMessagesBufferRef.current.push(message);
             scheduleFlushIncoming();
         });
 
+        newSocket.on("messageRead", (payload: { userId: string; messageId: string }) => {
+            console.debug("[socket] messageRead received:", payload);
+            if (!payload.userId || !payload.messageId) return;
+
+            const msg = messagesRef.current.find((m) => m.id === payload.messageId);
+            const createdAt = msg?.createdAt || new Date().toISOString();
+
+            setLastReadByUser((prev) => ({
+                ...prev,
+                [payload.userId]: {
+                    messageId: payload.messageId,
+                    createdAt
+                },
+            }));
+        });
+
         newSocket.on("roomCreated", (room: Room) => {
             console.log("Socket received roomCreated:", room);
-            setRooms((prev) => {
-                const exists = prev.some((r) => r.room.id === room.id);
-                if (exists) return prev;
-                return [...prev, { room }];
-            });
-            newSocket.emit("joinRoom", room.id);
+            const isCurrentUserMember = room.roomMembers?.some(m => m.user?.id === userRef.current?.id || m.userId === userRef.current?.id) || false;
+            
+            if (isCurrentUserMember || room.isDM) {
+                setRooms((prev) => {
+                    const exists = prev.some((r) => r.room.id === room.id);
+                    if (exists) return prev;
+                    return [...prev, { room }];
+                });
+                newSocket.emit("joinRoom", room.id);
+            } else {
+                setDiscoverRooms((prev) => {
+                    const exists = prev.some((r) => r.id === room.id);
+                    if (exists) return prev;
+                    return [...prev, room];
+                });
+            }
         });
 
         newSocket.on("messageUpdated", (updated: ChatMessage) => {
@@ -1057,6 +1191,7 @@ const ChatPage = () => {
             newSocket.off("messageDeleted");
             newSocket.off("roomCreated");
             newSocket.off("newMessage");
+            newSocket.off("messageRead");
             newSocket.off("onlineUsers");
             newSocket.off("userOnline");
             newSocket.off("userOffline");
@@ -1084,6 +1219,117 @@ const ChatPage = () => {
         socketRef.current.emit("joinRoom", selectedRoom.id);
     }, [selectedRoom, stopTyping]);
 
+    const processReadStates = useCallback((readStates: any[], messagesList: any[]) => {
+        if (!readStates || !readStates.length) return;
+        setLastReadByUser((prev) => {
+            const next = { ...prev };
+            let changed = false;
+            readStates.forEach((state) => {
+                if (state.userId && state.lastReadMessageId) {
+                    const foundMsg = messagesList.find((m) => m.id === state.lastReadMessageId);
+                    const createdAt = foundMsg?.createdAt;
+                    
+                    const existing = prev[state.userId];
+                    const nextCreatedAt = createdAt || (existing?.messageId === state.lastReadMessageId ? existing.createdAt : null) || new Date().toISOString();
+                    
+                    if (!existing || existing.messageId !== state.lastReadMessageId || existing.createdAt !== nextCreatedAt) {
+                        next[state.userId] = {
+                            messageId: state.lastReadMessageId,
+                            createdAt: nextCreatedAt
+                        };
+                        changed = true;
+                    }
+                }
+            });
+            return changed ? next : prev;
+        });
+    }, []);
+
+    const triggerMarkAsRead = useCallback(() => {
+        const roomId = selectedRoom?.id;
+        if (!roomId || !isConnected) return;
+
+        // 1. Browser tab visibility check
+        if (document.visibilityState !== "visible") return;
+
+        // 2. Near bottom check
+        if (!isNearBottomRef.current) return;
+
+        // 3. Find latest real message
+        const latestRealMessage = [...messages]
+            .reverse()
+            .find((m) => m.id && m.status !== "sending" && m.status !== "failed" && !m.isPending);
+
+        if (!latestRealMessage) return;
+
+        const messageId = latestRealMessage.id;
+
+        // 4. Duplicate/skip check using ref cache
+        if (lastMarkedMessageIdRef.current[roomId] === messageId) {
+            return;
+        }
+
+        // Clear existing debounce timeout
+        if (markAsReadTimeoutRef.current) {
+            clearTimeout(markAsReadTimeoutRef.current);
+        }
+
+        // Set debounce timeout
+        markAsReadTimeoutRef.current = setTimeout(async () => {
+            // Re-verify all conditions inside timeout
+            if (
+                selectedRoomIdRef.current !== roomId ||
+                !isConnected ||
+                document.visibilityState !== "visible" ||
+                !isNearBottomRef.current
+            ) {
+                return;
+            }
+
+            // Verify message still exists and is correct
+            if (lastMarkedMessageIdRef.current[roomId] === messageId) return;
+
+            try {
+                // Instantly update local unread count to 0 for instant premium feel
+                setUnreadCounts((prev) => {
+                    if (prev[roomId] === 0) return prev;
+                    return { ...prev, [roomId]: 0 };
+                });
+
+                // Update rooms list to reflect unread count changes locally
+                setRooms((prev) =>
+                    prev.map((rm) => {
+                        if (rm.room.id !== roomId) return rm;
+                        return {
+                            ...rm,
+                            room: { ...rm.room, unreadCount: 0 },
+                        };
+                    })
+                );
+
+                // Cache it before request to avoid race condition/double triggers
+                lastMarkedMessageIdRef.current[roomId] = messageId;
+
+                if (user?.id) {
+                    const msg = messagesRef.current.find((m) => m.id === messageId);
+                    const createdAt = msg?.createdAt || new Date().toISOString();
+                    setLastReadByUser((prev) => ({
+                        ...prev,
+                        [user.id]: { messageId, createdAt },
+                    }));
+                }
+
+                await messageService.markAsRead(roomId, messageId);
+            } catch (error) {
+                console.error("[read receipt] Failed to mark room as read:", error);
+                // Rollback cache on error so we can retry next time
+                if (lastMarkedMessageIdRef.current[roomId] === messageId) {
+                    delete lastMarkedMessageIdRef.current[roomId];
+                }
+            }
+        }, 300);
+    }, [selectedRoom, isConnected, messages, user]);
+
     const handleScroll = () => {
         const container = scrollContainerRef.current;
         if (!container) return;
@@ -1093,8 +1339,11 @@ const ChatPage = () => {
         }
 
         const isAtBottom = container.scrollHeight - container.scrollTop - container.clientHeight <= 100;
+        isNearBottomRef.current = isAtBottom;
+
         if (isAtBottom) {
             setShowNewMessagesBanner(false);
+            triggerMarkAsRead();
         }
     };
 
@@ -1154,6 +1403,59 @@ const ChatPage = () => {
     useEffect(() => {
         console.debug("onlineUsers changed, count:", onlineUsers.size);
     }, [onlineUsers]);
+
+    useEffect(() => {
+        isNearBottomRef.current = true;
+
+        if (!selectedRoom) {
+            setLastReadByUser({});
+            return;
+        }
+
+        const initialReadReceipts: Record<string, { messageId: string; createdAt: string }> = {};
+        selectedRoom.roomMembers?.forEach((member: any) => {
+            const lastRead = member.lastReadMessage;
+            if (lastRead?.id && member.user?.id) {
+                initialReadReceipts[member.user.id] = {
+                    messageId: lastRead.id,
+                    createdAt: lastRead.createdAt || new Date(0).toISOString()
+                };
+            }
+        });
+        setLastReadByUser(initialReadReceipts);
+    }, [selectedRoom]);
+
+    useEffect(() => {
+        triggerMarkAsRead();
+    }, [messages, selectedRoom, isConnected, triggerMarkAsRead]);
+
+    useEffect(() => {
+        console.debug("[read receipt] updated receipts:", lastReadByUser);
+    }, [lastReadByUser]);
+
+    const roomIdsStr = rooms.map((r) => r.room.id).join(",");
+    useEffect(() => {
+        if (!isConnected || !socketRef.current || rooms.length === 0) return;
+        const roomIds = rooms.map((r) => r.room.id);
+        console.log("[socket] subscribing to all rooms:", roomIds);
+        socketRef.current.emit("restoreRooms", roomIds);
+    }, [isConnected, roomIdsStr]);
+
+    useEffect(() => {
+        const handleVisibilityChange = () => {
+            if (document.visibilityState === "visible") {
+                triggerMarkAsRead();
+            }
+        };
+
+        document.addEventListener("visibilitychange", handleVisibilityChange);
+        window.addEventListener("focus", handleVisibilityChange);
+
+        return () => {
+            document.removeEventListener("visibilitychange", handleVisibilityChange);
+            window.removeEventListener("focus", handleVisibilityChange);
+        };
+    }, [triggerMarkAsRead]);
 
     const handleComposerChange = (value: string) => {
         setMessageInput(value);
@@ -1242,6 +1544,8 @@ const ChatPage = () => {
                             onAvatarChange={handleAvatarChange}
                             onLogout={handleLogout}
                             onCreateDM={handleCreateDM}
+                            discoverRooms={discoverRooms}
+                            onJoinRoom={handleJoinRoom}
                         />
                     </div>
 
@@ -1291,6 +1595,8 @@ const ChatPage = () => {
                                         currentUsername={user?.username}
                                         currentUserAvatar={getUserAvatar()}
                                         onlineUsers={onlineUsers}
+                                        lastReadByUser={lastReadByUser}
+                                        selectedRoom={selectedRoom}
                                         onDelete={async (messageId) => {
                                             if (!selectedRoom) return;
                                             try {
@@ -1462,6 +1768,8 @@ const ChatPage = () => {
                                     onAvatarChange={handleAvatarChange}
                                     onLogout={handleLogout}
                                     onCreateDM={handleCreateDM}
+                                    discoverRooms={discoverRooms}
+                                    onJoinRoom={handleJoinRoom}
                                 />
                             </motion.div>
                         </motion.div>
@@ -1473,6 +1781,8 @@ const ChatPage = () => {
                     selectedRoom={selectedRoom}
                     onClose={() => setIsCommandOpen(false)}
                     onSelectRoom={handleSelectRoom}
+                    discoverRooms={discoverRooms}
+                    onJoinRoom={handleJoinRoom}
                 />
             </div>
         </PageTransition>

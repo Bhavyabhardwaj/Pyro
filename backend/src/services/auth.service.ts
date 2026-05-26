@@ -47,6 +47,21 @@ export const authService = {
             },
         });
 
+        // Add the newly registered user to all existing public channels so they see them immediately
+        const publicRooms = await prisma.room.findMany({
+            where: { isDM: false },
+            select: { id: true },
+        });
+        if (publicRooms.length > 0) {
+            await prisma.roomMember.createMany({
+                data: publicRooms.map((r) => ({
+                    roomId: r.id,
+                    userId: user.id,
+                })),
+                skipDuplicates: true,
+            });
+        }
+
         const token = tokenUtils.generateToken(user.id);
 
         const { password: _, ...safeUser } = user;

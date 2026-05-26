@@ -10,12 +10,16 @@ export function CommandPalette({
   selectedRoom,
   onClose,
   onSelectRoom,
+  discoverRooms = [],
+  onJoinRoom,
 }: {
   isOpen: boolean;
   rooms: RoomMember[];
   selectedRoom: Room | null;
   onClose: () => void;
   onSelectRoom: (room: Room) => void;
+  discoverRooms?: Room[];
+  onJoinRoom: (roomId: string) => Promise<void>;
 }) {
   const [query, setQuery] = useState("");
   const [activeIndex, setActiveIndex] = useState(0);
@@ -26,26 +30,48 @@ export function CommandPalette({
     return rooms.filter((item) => item.room.name.toLowerCase().includes(value));
   }, [query, rooms]);
 
+  const discoverResults = useMemo(() => {
+    const value = query.trim().toLowerCase();
+    if (!value) return [];
+    return discoverRooms.filter((room) => {
+      if (room.isDM) return false;
+      const isMember = rooms.some((rm) => rm.room.id === room.id);
+      if (isMember) return false;
+      return room.name.toLowerCase().includes(value);
+    });
+  }, [query, discoverRooms, rooms]);
+
+  const mergedResults = useMemo(() => {
+    const joined = results.map(item => ({ ...item.room, isJoined: true }));
+    const discover = discoverResults.map(room => ({ ...room, isJoined: false }));
+    return [...joined, ...discover];
+  }, [results, discoverResults]);
+
   useEffect(() => {
     if (!isOpen) return;
     const handleKeyDown = (event: KeyboardEvent) => {
       if (event.key === "Escape") onClose();
       if (event.key === "ArrowDown") {
         event.preventDefault();
-        setActiveIndex((index) => Math.min(index + 1, results.length - 1));
+        setActiveIndex((index) => Math.min(index + 1, mergedResults.length - 1));
       }
       if (event.key === "ArrowUp") {
         event.preventDefault();
         setActiveIndex((index) => Math.max(index - 1, 0));
       }
-      if (event.key === "Enter" && results[activeIndex]) {
-        onSelectRoom(results[activeIndex].room);
+      if (event.key === "Enter" && mergedResults[activeIndex]) {
+        const item = mergedResults[activeIndex];
+        if (item.isJoined) {
+          onSelectRoom(item);
+        } else {
+          onJoinRoom(item.id);
+        }
         onClose();
       }
     };
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [activeIndex, isOpen, onClose, onSelectRoom, results]);
+  }, [activeIndex, isOpen, onClose, onSelectRoom, onJoinRoom, mergedResults]);
 
   return (
     <AnimatePresence>
@@ -86,37 +112,50 @@ export function CommandPalette({
               </button>
             </div>
             <div className="max-h-80 overflow-y-auto p-2">
-              {results.length === 0 ? (
+              {mergedResults.length === 0 ? (
                 <div className="px-3 py-8 text-center text-sm text-zinc-500">
                   No rooms found.
                 </div>
               ) : (
-                results.map((item, index) => {
+                mergedResults.map((room, index) => {
                   const active = index === activeIndex;
-                  const selected = selectedRoom?.id === item.room.id;
+                  const selected = selectedRoom?.id === room.id;
                   return (
                     <button
-                      key={item.room.id}
+                      key={room.id}
                       type="button"
                       onMouseEnter={() => setActiveIndex(index)}
                       onClick={() => {
-                        onSelectRoom(item.room);
+                        if (room.isJoined) {
+                          onSelectRoom(room);
+                        } else {
+                          onJoinRoom(room.id);
+                        }
                         onClose();
                       }}
                       className={cn(
-                        "flex w-full items-center gap-3 rounded-2xl px-3 py-3 text-left text-sm transition",
+                        "flex w-full items-center justify-between gap-3 rounded-2xl px-3 py-3 text-left text-sm transition group",
                         active ? "bg-white/8 text-white" : "text-zinc-400",
                       )}
                     >
-                      <span className="flex h-8 w-8 items-center justify-center rounded-xl border border-white/8 bg-white/4">
-                        <Hash className="h-4 w-4" />
-                      </span>
-                      <span className="min-w-0 flex-1 truncate">
-                        {item.room.name}
-                      </span>
-                      {selected && (
-                        <span className="text-xs text-cyan-100">Current</span>
-                      )}
+                      <div className="flex items-center gap-3 min-w-0 flex-1">
+                        <span className="flex h-8 w-8 items-center justify-center rounded-xl border border-white/8 bg-white/4">
+                          <Hash className="h-4 w-4" />
+                        </span>
+                        <span className="min-w-0 flex-1 truncate">
+                          {room.name}
+                        </span>
+                      </div>
+                      <div className="flex items-center gap-2 shrink-0">
+                        {selected && (
+                          <span className="text-xs text-cyan-100">Current</span>
+                        )}
+                        {!room.isJoined && (
+                          <span className="text-[10px] px-2 py-0.5 rounded border border-white/8 bg-white/4 text-zinc-400 group-hover:text-white transition">
+                            + Join
+                          </span>
+                        )}
+                      </div>
                     </button>
                   );
                 })

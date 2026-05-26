@@ -18,5 +18,13 @@ export const roomService = {
     async createDM(targetUserId: string) {
         const response = await api.post<ApiResponse<Room>>("/rooms/dm", { targetUserId });
         return response.data;
+    },
+    async getDiscoverRooms() {
+        const response = await api.get<ApiResponse<Room[]>>("/rooms/discover");
+        return response.data;
+    },
+    async joinRoom(roomId: string) {
+        const response = await api.post<ApiResponse<null>>(`/rooms/${roomId}/join`);
+        return response.data;
     }
 }

@@ -118,6 +118,13 @@ export const messageService = {
             },
             take: limit + 1,
         });
+        const roomMembers = await prisma.roomMember.findMany({
+            where: { roomId },
+            select: {
+                userId: true,
+                lastReadMessageId: true,
+            }
+        })
         const hasMore = messages.length > limit;
         if (hasMore) {
             messages.pop();
@@ -128,6 +135,7 @@ export const messageService = {
             messages: reversedMessages,
             nextCursor: reversedMessages.length > 0 ? reversedMessages[0]?.createdAt.toISOString() : null,
             hasMore,
+            readStatus: roomMembers,
         }
     },
     async editMessage(messageId: string, userId: string, content: string, roomId: string, ) {

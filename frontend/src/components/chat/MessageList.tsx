@@ -16,6 +16,7 @@ import EmojiPicker, {
   type EmojiClickData,
 } from "emoji-picker-react";
 import type { ChatMessage } from "../../types/chat";
+import type { Room } from "../../types/api";
 import { Skeleton } from "../ui/skeleton";
 import { Avatar } from "./Avatar";
 import { cn } from "../../lib/utils";
@@ -65,6 +66,8 @@ export function MessageList({
   onlineUsers = new Set(),
   isFetchingOlder = false,
   onRetry,
+  lastReadByUser = {},
+  selectedRoom,
 }: {
   messages: ChatMessage[];
   isLoading: boolean;
@@ -79,6 +82,8 @@ export function MessageList({
   typingUsers?: string[];
   isFetchingOlder?: boolean;
   onRetry?: (tempId: string) => void;
+  lastReadByUser?: Record<string, { messageId: string; createdAt: string }>;
+  selectedRoom?: Room | null;
 }) {
   const [reactionPickerId, setReactionPickerId] = useState<string | null>(null);
   const reactionPickerRef = useRef<HTMLDivElement | null>(null);
@@ -221,11 +226,32 @@ export function MessageList({
           );
           const canEdit = Boolean(isCurrentUser && isEditWindowOpen(message.createdAt));
           const editExpired = Boolean(isCurrentUser && !canEdit);
-          const showDelivered =
-            isCurrentUser &&
-            index === lastSelfIndex &&
-            !message.isPending &&
-            !message.isFailed;
+
+          // Derived receipt state for the last outgoing message in the timeline
+          const isLastOutgoing = index === lastSelfIndex && isCurrentUser;
+          let receiptStatus: "sending" | "failed" | "seen" | "delivered" | null = null;
+          let seenCount = 0;
+
+          if (isLastOutgoing) {
+            if (message.isPending || message.status === "sending") {
+              receiptStatus = "sending";
+            } else if (message.isFailed || message.status === "failed") {
+              receiptStatus = "failed";
+            } else {
+              if (message.createdAt) {
+                const msgTime = new Date(message.createdAt).getTime();
+                Object.entries(lastReadByUser).forEach(([uid, state]) => {
+                  if (uid !== currentUserId && state.createdAt) {
+                    const readTime = new Date(state.createdAt).getTime();
+                    if (readTime >= msgTime) {
+                      seenCount++;
+                    }
+                  }
+                });
+              }
+              receiptStatus = seenCount > 0 ? "seen" : "delivered";
+            }
+          }
 
           return (
             <motion.div
@@ -326,42 +352,7 @@ export function MessageList({
                       </p>
                     )}
 
-                    {/* Delivery Status Indicator */}
-                    {isCurrentUser && message.status && (
-                      <div className="flex items-center gap-1.5 mt-1 select-none text-[10px]">
-                        {message.status === "sending" && (
-                          <div className="flex items-center gap-1.5 text-neutral-400/50">
-                            <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-neutral-400" />
-                            <span className="text-[10px] text-neutral-400/60 font-light">Sending...</span>
-                          </div>
-                        )}
-                        {message.status === "sent" && (
-                          <div className="flex items-center gap-0.5 text-emerald-400/60">
-                            <Check className="h-3 w-3" />
-                            <span className="text-[10px] font-light">Sent</span>
-                          </div>
-                        )}
-                        {message.status === "failed" && (
-                          <div className="flex items-center gap-1.5">
-                            <span className="text-red-400/70 text-[10px] font-medium flex items-center gap-1">
-                              ⚠️ Failed to send
-                            </span>
-                            {onRetry && (
-                              <button
-                                type="button"
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  onRetry(message.id);
-                                }}
-                                className="px-1.5 py-0.5 rounded bg-red-950/40 border border-red-500/20 hover:bg-red-900/30 active:scale-95 transition-all text-red-300 font-medium text-[9px]"
-                              >
-                                Retry
-                              </button>
-                            )}
-                          </div>
-                        )}
-                      </div>
-                    )}
+
 
                     {/* Attachments rendering */}
                     {!message.isDeleted && message.attachments && message.attachments.length > 0 && (
@@ -452,24 +443,7 @@ export function MessageList({
                       </div>
                     )}
 
-                    {/* Delivery & Pending states (warmer glassmorphic checkmarks row) */}
-                    {isCurrentUser && !message.isDeleted && (
-                      <div className="mt-1.5 flex items-center justify-end gap-1 text-[9px] text-[var(--text-muted)] select-none px-0.5">
-                        {message.isPending ? (
-                          <span className="animate-pulse">Sending...</span>
-                        ) : message.isFailed ? (
-                          <span className="text-red-400 font-medium">Failed</span>
-                        ) : showDelivered ? (
-                          <span className="text-[var(--accent-teal)] font-medium flex items-center gap-0.5">
-                            Delivered <span className="text-[11px] leading-none">✓✓</span>
-                          </span>
-                        ) : (
-                          <span className="text-neutral-500 flex items-center gap-0.5" title="Sent">
-                            Sent <span className="text-[11px] leading-none">✓</span>
-                          </span>
-                        )}
-                      </div>
-                    )}
+
                   </div>
                   {/* Hover toolbar (Compact floating action bar on right side of message cell) */}
                   {!message.isDeleted && !message.status && (
@@ -567,6 +541,56 @@ export function MessageList({
                       <Check className="h-3 w-3" />
                       Done
                     </button>
+                  </div>
+                )}
+
+                {/* Receipt label row rendered beneath the bubble */}
+                {isLastOutgoing && receiptStatus && (
+                  <div className="mt-1 px-3.5 ml-2.5 text-[9.5px] text-[var(--text-muted)] font-normal select-none flex items-center gap-1">
+                    <AnimatePresence mode="wait">
+                      <motion.span
+                        key={receiptStatus}
+                        initial={{ opacity: 0, y: 1 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        exit={{ opacity: 0, y: -1 }}
+                        transition={{ duration: 0.15 }}
+                        className="flex items-center gap-1.5"
+                      >
+                        {receiptStatus === "sending" && (
+                          <span className="flex items-center gap-1.5 text-neutral-400/50">
+                            <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-neutral-400" />
+                            <span className="font-light">Sending...</span>
+                          </span>
+                        )}
+                        {receiptStatus === "failed" && (
+                          <span className="flex items-center gap-1.5 text-red-400/70 font-medium">
+                            <span>⚠️ Failed to send</span>
+                            {onRetry && (
+                              <button
+                                type="button"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  onRetry(message.id);
+                                }}
+                                className="px-1.5 py-0.5 rounded bg-red-950/40 border border-red-500/20 hover:bg-red-900/30 active:scale-95 transition-all text-red-300 font-medium text-[9px]"
+                              >
+                                Retry
+                              </button>
+                            )}
+                          </span>
+                        )}
+                        {receiptStatus === "delivered" && (
+                          <span className="text-neutral-500 font-light flex items-center gap-0.5" title="Sent to server">
+                            Delivered <span className="text-[10px] leading-none">✓✓</span>
+                          </span>
+                        )}
+                        {receiptStatus === "seen" && (
+                          <span className="text-[var(--accent-teal)] font-medium flex items-center gap-0.5">
+                            {selectedRoom?.isDM ? "Seen" : `Seen by ${seenCount}`} <span className="text-[10px] leading-none">✓✓</span>
+                          </span>
+                        )}
+                      </motion.span>
+                    </AnimatePresence>
                   </div>
                 )}
               </div>
