@@ -50,5 +50,16 @@ export const messageController = {
         } catch (error) {
             next(error);
         }
+    },
+    async markAsRead(req: Request<{ roomId: string }>, res: Response, next: NextFunction) {
+        try {
+            const userId = (req as any).user?.userId;
+            const roomId = req.params.roomId;
+            const { messageId } = req.body;
+            const result = await messageService.markAsRead(roomId, userId, messageId);
+            return responseUtils.success(res, result, "Message marked as read successfully");
+        } catch (error) {
+            next(error);
+        }
     }
 };

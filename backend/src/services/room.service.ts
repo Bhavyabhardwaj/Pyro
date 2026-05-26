@@ -42,7 +42,8 @@ export const roomService = {
                                         username: true,
                                         avatar: true,
                                     }
-                                }
+                                },
+                                lastReadMessage: true
                             }
                         },
                         messages: {
@@ -59,7 +60,7 @@ export const roomService = {
                                     }
                                 }
                             }
-                        }
+                        },
                     }
                 },
             },
@@ -67,7 +68,26 @@ export const roomService = {
                 createdAt: "desc",
             },
         });
-        return rooms;
+
+        const roomWithUnreadCounts = await Promise.all(rooms.map(async(membership) => {
+            const currentMember = membership.room.roomMembers.find(m => m.userId === userId);
+            const lastReadCreatedAt = currentMember?.lastReadMessage?.createdAt;
+            const unreadCount = await prisma.message.count({
+                where: {
+                    roomId: membership.roomId,
+                    authorId:{ not: userId },   // don't count own messages as unread
+                    ...(lastReadCreatedAt && {createdAt: { gt: lastReadCreatedAt }})
+                }
+            })
+            return {
+                ...membership,
+                room: {
+                    ...membership.room,
+                    unreadCount,
+                }
+            }
+        }));
+        return roomWithUnreadCounts;
     },
     async createDM(userId: string, targetUserId: string) {
         if (!userId || !targetUserId) {

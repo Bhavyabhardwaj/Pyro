@@ -212,5 +212,40 @@ export const messageService = {
             deletedMessage
         );
         return deletedMessage;
+    },
+    async markAsRead(roomId: string, userId: string, messageId: string) {
+        const roomMember = await prisma.roomMember.findUnique({
+            where: {
+                userId_roomId: {
+                    userId,
+                    roomId,
+                },
+            },
+        });
+        if (!roomMember) {
+            throw new BadRequestError("You are not a member of this room");
+        }
+
+        await prisma.roomMember.update({
+            where: {
+                userId_roomId: {
+                    userId,
+                    roomId,
+                },
+            },
+            data: {
+                lastReadMessageId: messageId
+            }
+        });
+
+        getIO().to(roomId).emit(
+            "messageRead",
+            {
+                userId,
+                messageId,
+            }
+        );
+
+        return { success: true };
     }
 }
