@@ -45,7 +45,8 @@ app.post("/api/upload", (req, res, next) => {
         
         fs.writeFileSync(filePath, buffer);
 
-        const fileUrl = `http://localhost:5000/uploads/${filename}`;
+        const backendUrl = process.env.BACKEND_URL || "https://api.bhavy4.tech";
+        const fileUrl = `${backendUrl.replace(/\/$/, "")}/uploads/${filename}`;
         res.json({
             success: true,
             data: {
