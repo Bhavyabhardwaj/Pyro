@@ -69,6 +69,7 @@ const ChatPage = () => {
     const messagesEndRef = useRef<HTMLDivElement | null>(null);
     const selectedRoomIdRef = useRef<string | null>(null);
     const lastMessagesFetchRef = useRef<number | null>(null);
+    const lastFetchedRoomIdRef = useRef<string | null>(null);
     const typingStopTimeoutRef = useRef<number | null>(null);
     const typingActiveRef = useRef<Record<string, boolean>>({});
     const attachmentUrlsRef = useRef<Set<string>>(new Set());
@@ -894,12 +895,13 @@ const ChatPage = () => {
         if (!selectedRoom) return;
         const fetchMessages = async () => {
             console.debug("fetchMessages invoked for room", selectedRoom.id);
-            // throttle repeated calls
+            // throttle repeated calls for the SAME room to prevent spamming
             const now = Date.now();
-            if ((lastMessagesFetchRef.current ?? 0) + 800 > now) {
+            if (lastFetchedRoomIdRef.current === selectedRoom.id && (lastMessagesFetchRef.current ?? 0) + 800 > now) {
                 console.debug("fetchMessages throttled for room", selectedRoom.id);
                 return;
             }
+            lastFetchedRoomIdRef.current = selectedRoom.id;
             lastMessagesFetchRef.current = now;
             setIsMessagesLoading(true);
             try {
