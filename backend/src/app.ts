@@ -19,15 +19,14 @@ const allowedOrigins = new Set(
 
 const corsOptions: cors.CorsOptions = {
     origin: (origin, callback) => {
-        if (!origin || allowedOrigins.has(origin)) {
+        if (!origin || allowedOrigins.has(origin) || process.env.NODE_ENV !== "production") {
             callback(null, true);
-            return;
+        } else {
+            callback(null, false);
         }
-
-        callback(new Error(`CORS blocked for origin: ${origin}`));
     },
+    credentials: true,
     methods: ["GET", "HEAD", "PUT", "PATCH", "POST", "DELETE", "OPTIONS"],
-    allowedHeaders: ["Content-Type", "Authorization"],
     optionsSuccessStatus: 200,
 };
 

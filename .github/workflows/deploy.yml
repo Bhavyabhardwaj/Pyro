@@ -35,4 +35,4 @@ jobs:
 
             npm run build
 
-            pm2 restart pyro-backend
+            pm2 restart pyro-backend || pm2 start dist/server.js --name "pyro-backend"
