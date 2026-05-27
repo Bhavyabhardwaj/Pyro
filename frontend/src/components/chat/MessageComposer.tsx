@@ -71,6 +71,14 @@ export function MessageComposer({
   const [isEmojiOpen, setIsEmojiOpen] = useState(false);
   const [isDragging, setIsDragging] = useState(false);
   const [emojiPulse, setEmojiPulse] = useState(false);
+  const [isMobile, setIsMobile] = useState(false);
+
+  useEffect(() => {
+    const checkMobile = () => setIsMobile(window.innerWidth < 768);
+    checkMobile();
+    window.addEventListener("resize", checkMobile);
+    return () => window.removeEventListener("resize", checkMobile);
+  }, []);
 
   useEffect(() => {
     if (!textareaRef.current) return;
@@ -262,22 +270,43 @@ export function MessageComposer({
           {/* Emoji Picker Modal */}
           <AnimatePresence>
             {isEmojiOpen && !disabled && (
-              <motion.div
-                ref={emojiPickerRef}
-                initial={{ opacity: 0, y: 4 }}
-                animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0, y: 4 }}
-                className="mt-2 overflow-hidden rounded-lg border border-[var(--border-subtle)] bg-[rgba(22,22,21,0.96)] p-1 shadow-2xl shadow-black/60"
-              >
-                <EmojiPicker
-                  theme={Theme.DARK}
-                  onEmojiClick={handleEmojiClick}
-                  emojiStyle={EmojiStyle.NATIVE}
-                  width="100%"
-                  height={220}
-                  autoFocusSearch={false}
+              <>
+                <div 
+                  className="fixed inset-0 z-40 bg-black/40 backdrop-blur-[1px] md:hidden"
+                  onClick={() => setIsEmojiOpen(false)}
                 />
-              </motion.div>
+                <motion.div
+                  ref={emojiPickerRef}
+                  initial={isMobile ? { y: "100%" } : { opacity: 0, y: 4 }}
+                  animate={isMobile ? { y: 0 } : { opacity: 1, y: 0 }}
+                  exit={isMobile ? { y: "100%" } : { opacity: 0, y: 4 }}
+                  transition={{ type: "spring", damping: 25, stiffness: 250 }}
+                  className={cn(
+                    "z-50 overflow-hidden shadow-2xl shadow-black/60",
+                    // Mobile: slide-up bottom drawer
+                    "fixed bottom-0 left-0 right-0 rounded-t-2xl border-t border-[rgba(255,255,255,0.08)] bg-[rgba(17,17,16,0.98)] p-2 backdrop-blur-2xl md:relative md:bottom-auto md:left-auto md:right-auto md:z-20 md:mt-2 md:rounded-lg md:border md:border-[var(--border-subtle)] md:bg-[rgba(22,22,21,0.96)] md:p-1 md:backdrop-blur-none"
+                  )}
+                >
+                  <div className="flex items-center justify-between px-2 pb-2 md:hidden">
+                    <span className="text-xs font-semibold text-[var(--text-primary)]">Select Emoji</span>
+                    <button 
+                      type="button" 
+                      onClick={() => setIsEmojiOpen(false)}
+                      className="text-[var(--text-muted)] hover:text-white"
+                    >
+                      <X className="h-4 w-4" />
+                    </button>
+                  </div>
+                  <EmojiPicker
+                    theme={Theme.DARK}
+                    onEmojiClick={handleEmojiClick}
+                    emojiStyle={EmojiStyle.NATIVE}
+                    width="100%"
+                    height={isMobile ? 320 : 220}
+                    autoFocusSearch={false}
+                  />
+                </motion.div>
+              </>
             )}
           </AnimatePresence>
 

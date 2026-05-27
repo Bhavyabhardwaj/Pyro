@@ -8,6 +8,7 @@ import {
   Pencil,
   SmilePlus,
   Trash2,
+  X,
 } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import EmojiPicker, {
@@ -92,6 +93,14 @@ export function MessageList({
     name: string;
   } | null>(null);
   const [activeMessageId, setActiveMessageId] = useState<string | null>(null);
+  const [isMobile, setIsMobile] = useState(false);
+
+  useEffect(() => {
+    const checkMobile = () => setIsMobile(window.innerWidth < 768);
+    checkMobile();
+    window.addEventListener("resize", checkMobile);
+    return () => window.removeEventListener("resize", checkMobile);
+  }, []);
 
   const isSameAuthor = (a?: ChatMessage, b?: ChatMessage) => {
     if (!a || !b) return false;
@@ -191,6 +200,15 @@ export function MessageList({
       className="relative mx-auto max-w-3xl space-y-0 px-4 py-4 md:px-6"
       onClick={() => setActiveMessageId(null)}
     >
+      {activeMessageId && (
+        <div 
+          className="fixed inset-0 z-30 bg-black/15 backdrop-blur-[0.5px] md:hidden"
+          onClick={(e) => {
+            e.stopPropagation();
+            setActiveMessageId(null);
+          }}
+        />
+      )}
       <AnimatePresence>
         {isFetchingOlder && (
           <motion.div
@@ -372,12 +390,13 @@ export function MessageList({
                               {isImage ? (
                                 <button
                                   type="button"
-                                  onClick={() =>
+                                  onClick={(e) => {
+                                    e.stopPropagation();
                                     setLightboxImage({
                                       src: url,
                                       name: name,
-                                    })
-                                  }
+                                    });
+                                  }}
                                   className="relative block w-full focus:outline-none"
                                 >
                                   <img
@@ -404,6 +423,7 @@ export function MessageList({
                                     download={name}
                                     target="_blank"
                                     rel="noreferrer"
+                                    onClick={(e) => e.stopPropagation()}
                                     className="rounded border border-[var(--border-muted)] px-2 py-0.5 text-[9px] text-[var(--text-secondary)] transition hover:border-[var(--border-subtle)] hover:bg-white/5 hover:text-[var(--text-primary)]"
                                   >
                                     Download
@@ -428,7 +448,10 @@ export function MessageList({
                           <button
                             key={reaction.emoji}
                             type="button"
-                            onClick={() => onToggleReaction(message.id, reaction.emoji)}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              onToggleReaction(message.id, reaction.emoji);
+                            }}
                             className={cn(
                               "group/reaction inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-[9.5px] transition-all duration-150 hover:scale-103",
                               reaction.reacted
@@ -450,40 +473,44 @@ export function MessageList({
                     <div 
                       onClick={(e) => e.stopPropagation()}
                       className={cn(
-                        "pointer-events-none absolute -top-4 right-3 flex -translate-y-1 items-center gap-0.5 rounded-lg border border-[rgba(255,255,255,0.08)] bg-[rgba(22,22,21,0.92)] px-1 py-0.5 text-[10px] text-[var(--text-secondary)] opacity-0 shadow-[0_8px_24px_rgba(0,0,0,0.45)] backdrop-blur-xl transition-all duration-200 group-hover:translate-y-0 group-hover:opacity-100 group-hover:pointer-events-auto",
-                        activeMessageId === message.id && "translate-y-0 opacity-100 pointer-events-auto"
+                        "pointer-events-none opacity-0 transition-all duration-200",
+                        // Desktop styling (hover/click popup on right side)
+                        "md:absolute md:-top-4 md:right-3 md:flex md:-translate-y-1 md:items-center md:gap-0.5 md:rounded-lg md:border md:border-[rgba(255,255,255,0.08)] md:bg-[rgba(22,22,21,0.92)] md:px-1 md:py-0.5 md:text-[10px] md:text-[var(--text-secondary)] md:shadow-[0_8px_24px_rgba(0,0,0,0.45)] md:backdrop-blur-xl md:group-hover:translate-y-0 md:group-hover:opacity-100 md:group-hover:pointer-events-auto",
+                        // Mobile styling (bottom floating action dock)
+                        "fixed bottom-24 left-1/2 -translate-x-1/2 z-40 flex items-center gap-2 rounded-xl border border-white/10 bg-[rgba(17,17,16,0.98)] px-3 py-2 shadow-[0_20px_50px_rgba(0,0,0,0.6)] backdrop-blur-2xl scale-95",
+                        activeMessageId === message.id && "opacity-100 scale-100 pointer-events-auto md:translate-y-0 md:left-auto md:translate-x-0 md:bottom-auto md:top-0 md:right-3 md:absolute md:flex"
                       )}
                     >
-                      <div className="pointer-events-auto flex items-center gap-0.5 select-none">
+                      <div className="pointer-events-auto flex items-center gap-1 select-none md:gap-0.5">
                         <motion.button
                           type="button"
                           whileHover={{ scale: 1.05 }}
                           whileTap={{ scale: 0.95 }}
                           onClick={() => onReply(message)}
-                          className="flex h-5 w-5 items-center justify-center rounded transition hover:bg-white/5 hover:text-[var(--text-primary)]"
+                          className="flex h-8 w-8 md:h-5 md:w-5 items-center justify-center rounded-lg md:rounded transition hover:bg-white/5 hover:text-[var(--text-primary)]"
                           title="Reply"
                         >
-                          <CornerUpLeft className="h-3 w-3" />
+                          <CornerUpLeft className="h-4.5 w-4.5 md:h-3 md:w-3" />
                         </motion.button>
                         <motion.button
                           type="button"
                           whileHover={{ scale: 1.05 }}
                           whileTap={{ scale: 0.95 }}
                           onClick={() => setReactionPickerId(message.id)}
-                          className="flex h-5 w-5 items-center justify-center rounded transition hover:bg-white/5 hover:text-[var(--text-primary)]"
+                          className="flex h-8 w-8 md:h-5 md:w-5 items-center justify-center rounded-lg md:rounded transition hover:bg-white/5 hover:text-[var(--text-primary)]"
                           title="React"
                         >
-                          <SmilePlus className="h-3 w-3" />
+                          <SmilePlus className="h-4.5 w-4.5 md:h-3 md:w-3" />
                         </motion.button>
                         <motion.button
                           type="button"
                           whileHover={{ scale: 1.05 }}
                           whileTap={{ scale: 0.95 }}
                           onClick={() => navigator.clipboard?.writeText(message.content)}
-                          className="flex h-5 w-5 items-center justify-center rounded transition hover:bg-white/5 hover:text-[var(--text-primary)]"
+                          className="flex h-8 w-8 md:h-5 md:w-5 items-center justify-center rounded-lg md:rounded transition hover:bg-white/5 hover:text-[var(--text-primary)]"
                           title="Copy text"
                         >
-                          <Copy className="h-3 w-3" />
+                          <Copy className="h-4.5 w-4.5 md:h-3 md:w-3" />
                         </motion.button>
                         {isCurrentUser && (
                           <>
@@ -493,22 +520,22 @@ export function MessageList({
                               whileTap={canEdit ? { scale: 0.95 } : undefined}
                               onClick={() => { if (canEdit) onEdit(message); }}
                               className={cn(
-                                "flex h-5 w-5 items-center justify-center rounded transition",
+                                "flex h-8 w-8 md:h-5 md:w-5 items-center justify-center rounded-lg md:rounded transition",
                                 canEdit ? "hover:bg-white/5 hover:text-[var(--text-primary)]" : "cursor-not-allowed opacity-30"
                               )}
                               title={editExpired ? "Editing window expired" : "Edit"}
                             >
-                              <Pencil className="h-3 w-3" />
+                              <Pencil className="h-4.5 w-4.5 md:h-3 md:w-3" />
                             </motion.button>
                             <motion.button
                               type="button"
                               whileHover={{ scale: 1.05 }}
                               whileTap={{ scale: 0.95 }}
                               onClick={() => onDelete(message.id)}
-                              className="flex h-5 w-5 items-center justify-center rounded text-red-400 transition hover:bg-red-500/10"
+                              className="flex h-8 w-8 md:h-5 md:w-5 items-center justify-center rounded-lg md:rounded text-red-400 transition hover:bg-red-500/10"
                               title="Delete"
                             >
-                              <Trash2 className="h-3 w-3" />
+                              <Trash2 className="h-4.5 w-4.5 md:h-3 md:w-3" />
                             </motion.button>
                           </>
                         )}
@@ -519,29 +546,53 @@ export function MessageList({
 
                 {/* Reaction Popover container (Inline expansion) */}
                 {reactionPickerId === message.id && (
-                  <div
-                    ref={reactionPickerRef}
-                    className="mt-2 z-20 overflow-hidden rounded-xl border border-[rgba(255,255,255,0.08)] bg-[rgba(22,22,21,0.92)] p-2 shadow-[0_16px_40px_rgba(0,0,0,0.55),inset_0_1px_0_rgba(255,255,255,0.02)] backdrop-blur-2xl"
-                  >
-                    <EmojiPicker
-                      theme={Theme.DARK}
-                      onEmojiClick={(emojiData) =>
-                        handleReactionClick(message.id, emojiData)
-                      }
-                      emojiStyle={EmojiStyle.NATIVE}
-                      width="100%"
-                      height={240}
-                      autoFocusSearch={false}
-                    />
-                    <button
-                      type="button"
+                  <>
+                    <div 
+                      className="fixed inset-0 z-40 bg-black/40 backdrop-blur-[1px] md:hidden"
                       onClick={() => setReactionPickerId(null)}
-                      className="mt-2 flex w-full items-center justify-center gap-1.5 rounded border border-[var(--border-muted)] py-1 text-[10px] text-[var(--text-secondary)] transition hover:bg-white/5 hover:text-[var(--text-primary)]"
+                    />
+                    <motion.div
+                      ref={reactionPickerRef}
+                      initial={isMobile ? { y: "100%" } : { opacity: 0, y: 4 }}
+                      animate={isMobile ? { y: 0 } : { opacity: 1, y: 0 }}
+                      exit={isMobile ? { y: "100%" } : { opacity: 0, y: 4 }}
+                      transition={{ type: "spring", damping: 25, stiffness: 250 }}
+                      className={cn(
+                        "z-50 overflow-hidden shadow-[0_16px_40px_rgba(0,0,0,0.55)]",
+                        // Mobile: slide-up bottom drawer
+                        "fixed bottom-0 left-0 right-0 rounded-t-2xl border-t border-[rgba(255,255,255,0.08)] bg-[rgba(17,17,16,0.98)] p-3 backdrop-blur-2xl md:relative md:bottom-auto md:left-auto md:right-auto md:mt-2 md:rounded-xl md:border md:border-[rgba(255,255,255,0.08)] md:bg-[rgba(22,22,21,0.92)] md:p-2 md:backdrop-blur-none"
+                      )}
                     >
-                      <Check className="h-3 w-3" />
-                      Done
-                    </button>
-                  </div>
+                      <div className="flex items-center justify-between mb-2 md:hidden">
+                        <span className="text-xs font-semibold text-[var(--text-primary)]">Add Reaction</span>
+                        <button 
+                          type="button" 
+                          onClick={() => setReactionPickerId(null)}
+                          className="text-[var(--text-muted)] hover:text-white"
+                        >
+                          <X className="h-4 w-4" />
+                        </button>
+                      </div>
+                      <EmojiPicker
+                        theme={Theme.DARK}
+                        onEmojiClick={(emojiData) =>
+                          handleReactionClick(message.id, emojiData)
+                        }
+                        emojiStyle={EmojiStyle.NATIVE}
+                        width="100%"
+                        height={isMobile ? 320 : 240}
+                        autoFocusSearch={false}
+                      />
+                      <button
+                        type="button"
+                        onClick={() => setReactionPickerId(null)}
+                        className="mt-3 flex w-full items-center justify-center gap-1.5 rounded-lg border border-[var(--border-muted)] py-2 text-xs font-medium text-[var(--text-secondary)] transition hover:bg-white/5 hover:text-[var(--text-primary)] md:mt-2 md:py-1 md:text-[10px]"
+                      >
+                        <Check className="h-4 w-4 md:h-3 md:w-3" />
+                        Done
+                      </button>
+                    </motion.div>
+                  </>
                 )}
 
                 {/* Receipt label row rendered beneath the bubble */}
