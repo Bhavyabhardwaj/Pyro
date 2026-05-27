@@ -7,10 +7,19 @@ import { tokenUtils } from "../utils";
 
 let io: Server;
 
+const allowedOrigins = [
+    process.env.FRONTEND_URL,
+    process.env.CORS_ORIGIN,
+    "https://pyro.bhavy4.tech",
+    "http://localhost:5173",
+    "http://localhost:3000",
+].filter((origin): origin is string => Boolean(origin));
+
 export const initializeSocket = (server: HTTPServer) => {
     io = new Server(server, {
         cors: {
-            origin: "*",
+            origin: allowedOrigins,
+            methods: ["GET", "POST"],
         },
     });
 
