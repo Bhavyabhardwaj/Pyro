@@ -29,7 +29,14 @@ const ChatPage = () => {
             console.log(`ChatPage unmount #${mountRef.current}`);
         };
     }, []);
-    const [rooms, setRooms] = useState<RoomMember[]>([]);
+    const [rooms, setRooms] = useState<RoomMember[]>(() => {
+        try {
+            const cached = localStorage.getItem("pyro_cached_rooms");
+            return cached ? JSON.parse(cached) : [];
+        } catch {
+            return [];
+        }
+    });
     const [discoverRooms, setDiscoverRooms] = useState<Room[]>([]);
     const [roomFilter, setRoomFilter] = useState("");
     const [newRoomName, setNewRoomName] = useState("");
@@ -51,7 +58,14 @@ const ChatPage = () => {
     const [isCommandOpen, setIsCommandOpen] = useState(false);
     const [isMobileRoomsOpen, setIsMobileRoomsOpen] = useState(false);
     const [unreadCounts, setUnreadCounts] = useState<Record<string, number>>({});
-    const [isRoomsLoading, setIsRoomsLoading] = useState(true);
+    const [isRoomsLoading, setIsRoomsLoading] = useState(() => {
+        try {
+            const cached = localStorage.getItem("pyro_cached_rooms");
+            return cached ? JSON.parse(cached).length === 0 : true;
+        } catch {
+            return true;
+        }
+    });
     const [isMessagesLoading, setIsMessagesLoading] = useState(false);
     const [roomsError, setRoomsError] = useState<string | null>(null);
     const [messagesError, setMessagesError] = useState<string | null>(null);
@@ -830,6 +844,11 @@ const ChatPage = () => {
                 const response = await roomService.getRooms();
                 console.debug("fetched rooms count:", response.data.length, "payload:", response.data);
                 setRooms((prev) => {
+                    try {
+                        localStorage.setItem("pyro_cached_rooms", JSON.stringify(response.data));
+                    } catch (e) {
+                        console.error("Failed to cache rooms", e);
+                    }
                     if (areRoomListsEqual(prev, response.data)) return prev;
                     return response.data;
                 });
@@ -993,6 +1012,9 @@ const ChatPage = () => {
             // Refresh rooms to get latest unread counts and last messages after offline period
             roomService.getRooms().then((res) => {
                 setRooms((prev) => {
+                    try {
+                        localStorage.setItem("pyro_cached_rooms", JSON.stringify(res.data));
+                    } catch (e) {}
                     if (areRoomListsEqual(prev, res.data)) return prev;
                     return res.data;
                 });
