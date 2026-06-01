@@ -57,6 +57,7 @@ export const aiService = {
         const messages = await prisma.message.findMany({
             where: {
                 roomId,
+                isDeleted: false,
             },
             orderBy: {
                 createdAt: "desc",
@@ -81,11 +82,20 @@ export const aiService = {
             .join("\n");
 
         const prompt = `
-                You are Pyro AI.
-                Summarize this chat conversation in 3-5 concise bullet points.
-                Conversation:
-                ${context}
-            `;
+You are Pyro AI.
+
+Analyze the conversation and provide:
+
+1. Main discussion topics
+2. Important decisions or conclusions
+3. Action items (if any)
+
+Return ONLY bullet points.
+
+Conversation:
+
+${context}
+`;
         const response = await this.generateResponse(prompt);
         return response;
     },

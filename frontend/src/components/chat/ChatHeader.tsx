@@ -1,6 +1,6 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Hash, Menu, Wifi, WifiOff, Sparkles, Loader2 } from "lucide-react";
-import { motion } from "framer-motion";
+import { AnimatePresence, motion } from "framer-motion";
 import type { Room, User } from "../../types/api";
 import { Button } from "../ui/button";
 import { cn } from "../../lib/utils";
@@ -24,7 +24,27 @@ export function ChatHeader({
   const [isSummarizing, setIsSummarizing] = useState(false);
   const [summaryContent, setSummaryContent] = useState("");
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [isDropdownOpen, setIsDropdownOpen] = useState(false);
   const { showToast } = useToast();
+
+  // Close helper to ensure any stale loading state is completely removed
+  const handleCloseModal = () => {
+    setIsModalOpen(false);
+    setIsSummarizing(false);
+  };
+
+  // Close AI dropdown when clicking outside
+  useEffect(() => {
+    if (!isDropdownOpen) return;
+    const handleOutsideClick = (e: MouseEvent) => {
+      const target = e.target as HTMLElement;
+      if (!target.closest(".ai-dropdown-container")) {
+        setIsDropdownOpen(false);
+      }
+    };
+    document.addEventListener("pointerdown", handleOutsideClick);
+    return () => document.removeEventListener("pointerdown", handleOutsideClick);
+  }, [isDropdownOpen]);
 
   const handleSummarize = async () => {
     if (!room) return;
@@ -121,26 +141,96 @@ export function ChatHeader({
 
       <div className="flex items-center gap-2">
         {room && (
-          <motion.button
-            initial={{ opacity: 0, scale: 0.95 }}
-            animate={{ opacity: 1, scale: 1 }}
-            onClick={handleSummarize}
-            disabled={isSummarizing}
-            className="flex items-center gap-1.5 rounded-lg border border-teal-500/25 bg-teal-500/5 px-2.5 py-1 text-[10px] font-semibold text-teal-300 shadow-[0_0_10px_rgba(20,184,166,0.1)] hover:bg-teal-500/10 hover:border-teal-500/40 active:scale-97 disabled:pointer-events-none disabled:opacity-50 select-none cursor-pointer transition-all duration-200"
-            title="Generate AI summary of this conversation"
-          >
-            {isSummarizing ? (
-              <>
-                <Loader2 className="h-3 w-3 animate-spin text-teal-400" />
-                <span className="animate-pulse">AI ⌛</span>
-              </>
-            ) : (
-              <>
-                <Sparkles className="h-3 w-3 text-teal-400" />
-                <span>AI ✨</span>
-              </>
-            )}
-          </motion.button>
+          <div className="relative ai-dropdown-container">
+            <motion.button
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              onClick={() => setIsDropdownOpen((prev) => !prev)}
+              disabled={isSummarizing}
+              className="flex items-center gap-1 rounded-lg border border-teal-500/25 bg-teal-500/5 px-2.5 py-1 text-[10px] font-semibold text-teal-300 shadow-[0_0_10px_rgba(20,184,166,0.1)] hover:bg-teal-500/10 hover:border-teal-500/40 active:scale-97 disabled:pointer-events-none disabled:opacity-50 select-none cursor-pointer transition-all duration-200"
+              title="Open AI Tools menu"
+            >
+              {isSummarizing ? (
+                <>
+                  <Loader2 className="h-3 w-3 animate-spin text-teal-400" />
+                  <span className="animate-pulse">AI ⌛</span>
+                </>
+              ) : (
+                <>
+                  <Sparkles className="h-3 w-3 text-teal-400" />
+                  <span>AI</span>
+                </>
+              )}
+            </motion.button>
+
+            <AnimatePresence>
+              {isDropdownOpen && (
+                <motion.div
+                  initial={{ opacity: 0, y: 8, scale: 0.96 }}
+                  animate={{ opacity: 1, y: 0, scale: 1 }}
+                  exit={{ opacity: 0, y: 8, scale: 0.96 }}
+                  transition={{ duration: 0.15, ease: "easeOut" }}
+                  className="absolute top-8 right-0 z-40 w-44 rounded-xl border border-white/8 bg-zinc-950/95 p-1 shadow-2xl shadow-black/85 backdrop-blur-md flex flex-col"
+                >
+                  <div className="px-2.5 py-1.5 text-[8.5px] font-semibold text-zinc-500 uppercase tracking-wider border-b border-white/5 mb-1 select-none">
+                    AI Features
+                  </div>
+                  
+                  {/* Summarize Room Action */}
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setIsDropdownOpen(false);
+                      handleSummarize();
+                    }}
+                    className="flex w-full items-center gap-2 rounded-lg px-2.5 py-1.5 text-left text-xs text-zinc-300 transition duration-200 hover:bg-white/5 hover:text-white cursor-pointer select-none"
+                  >
+                    <Sparkles className="h-3.5 w-3.5 text-teal-400 shrink-0" />
+                    <span className="truncate">Summarize Room</span>
+                  </button>
+
+                  {/* Suggest Reply (Coming Soon) */}
+                  <button
+                    type="button"
+                    disabled
+                    className="flex w-full items-center justify-between gap-2 rounded-lg px-2.5 py-1.5 text-left text-xs text-zinc-600 select-none cursor-not-allowed"
+                  >
+                    <div className="flex items-center gap-2 min-w-0">
+                      <span className="text-[11px] shrink-0">💬</span>
+                      <span className="truncate">Suggest Reply</span>
+                    </div>
+                    <span className="text-[7px] px-1 py-0.5 rounded bg-white/2 text-zinc-600 scale-90 shrink-0 font-medium tracking-wide">SOON</span>
+                  </button>
+
+                  {/* Meeting Notes (Coming Soon) */}
+                  <button
+                    type="button"
+                    disabled
+                    className="flex w-full items-center justify-between gap-2 rounded-lg px-2.5 py-1.5 text-left text-xs text-zinc-600 select-none cursor-not-allowed"
+                  >
+                    <div className="flex items-center gap-2 min-w-0">
+                      <span className="text-[11px] shrink-0">📝</span>
+                      <span className="truncate">Meeting Notes</span>
+                    </div>
+                    <span className="text-[7px] px-1 py-0.5 rounded bg-white/2 text-zinc-600 scale-90 shrink-0 font-medium tracking-wide">SOON</span>
+                  </button>
+
+                  {/* Ask Pyro AI (Coming Soon) */}
+                  <button
+                    type="button"
+                    disabled
+                    className="flex w-full items-center justify-between gap-2 rounded-lg px-2.5 py-1.5 text-left text-xs text-zinc-600 select-none cursor-not-allowed"
+                  >
+                    <div className="flex items-center gap-2 min-w-0">
+                      <span className="text-[11px] shrink-0">🔮</span>
+                      <span className="truncate">Ask Pyro AI</span>
+                    </div>
+                    <span className="text-[7px] px-1 py-0.5 rounded bg-white/2 text-zinc-650 scale-90 shrink-0 font-medium tracking-wide">SOON</span>
+                  </button>
+                </motion.div>
+              )}
+            </AnimatePresence>
+          </div>
         )}
 
         <motion.div
@@ -164,7 +254,7 @@ export function ChatHeader({
 
       <RoomSummaryModal
         isOpen={isModalOpen}
-        onClose={() => setIsModalOpen(false)}
+        onClose={handleCloseModal}
         summary={summaryContent}
         roomName={displayName || room?.name || ""}
       />
