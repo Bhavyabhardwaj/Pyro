@@ -166,11 +166,11 @@ export function ChatHeader({
             <AnimatePresence>
               {isDropdownOpen && (
                 <motion.div
-                  initial={{ opacity: 0, y: 8, scale: 0.96 }}
+                  initial={{ opacity: 0, y: 10, scale: 0.96 }}
                   animate={{ opacity: 1, y: 0, scale: 1 }}
-                  exit={{ opacity: 0, y: 8, scale: 0.96 }}
+                  exit={{ opacity: 0, y: 10, scale: 0.96 }}
                   transition={{ duration: 0.15, ease: "easeOut" }}
-                  className="absolute top-8 right-0 z-40 w-44 rounded-xl border border-white/8 bg-zinc-950/95 p-1 shadow-2xl shadow-black/85 backdrop-blur-md flex flex-col"
+                  className="absolute top-10 right-0 z-40 w-48 rounded-xl border border-white/8 bg-zinc-950/95 p-1.5 shadow-2xl shadow-black/85 backdrop-blur-md flex flex-col select-none"
                 >
                   <div className="px-2.5 py-1.5 text-[8.5px] font-semibold text-zinc-500 uppercase tracking-wider border-b border-white/5 mb-1 select-none">
                     AI Features
@@ -186,7 +186,7 @@ export function ChatHeader({
                     className="flex w-full items-center gap-2 rounded-lg px-2.5 py-1.5 text-left text-xs text-zinc-300 transition duration-200 hover:bg-white/5 hover:text-white cursor-pointer select-none"
                   >
                     <Sparkles className="h-3.5 w-3.5 text-teal-400 shrink-0" />
-                    <span className="truncate">Summarize Room</span>
+                    <span>Summarize Room</span>
                   </button>
 
                   {/* Suggest Reply (Coming Soon) */}
