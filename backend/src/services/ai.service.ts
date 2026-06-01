@@ -5,13 +5,24 @@ import { BadRequestError } from "../errors";
 
 dotenv.config();
 
-const ai = new GoogleGenAI({
-    apiKey: process.env.GEMINI_API_KEY!,
-});
+let aiInstance: GoogleGenAI | null = null;
+
+function getAiClient() {
+    if (!aiInstance) {
+        const apiKey = process.env.GEMINI_API_KEY;
+        if (!apiKey) {
+            console.error("[Gemini AI Service Error]: GEMINI_API_KEY is not defined in process.env!");
+            throw new BadRequestError("Gemini API key is missing on the server.");
+        }
+        aiInstance = new GoogleGenAI({ apiKey });
+    }
+    return aiInstance;
+}
 
 export const aiService = {
     async generateResponse(prompt: string) {
         try {
+            const ai = getAiClient();
             const response = await ai.models.generateContent({
                 model: "gemini-2.5-flash-lite",
                 contents: prompt,
