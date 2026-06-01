@@ -39,7 +39,8 @@ export function ChatHeader({
       }
     } catch (err: any) {
       console.error("AI Room Summary error:", err);
-      const errMsg = err.response?.data?.message || "Something went wrong while summarizing.";
+      const errors = err.response?.data?.errors;
+      const errMsg = (errors && errors[0]?.message) || err.response?.data?.message || "Something went wrong while summarizing.";
       showToast(errMsg, "error");
     } finally {
       setIsSummarizing(false);

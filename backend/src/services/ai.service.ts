@@ -19,6 +19,7 @@ export const aiService = {
 
             return response.text;
         } catch (error: any) {
+            console.error("[Gemini AI Service Error]:", error);
             if (error.status === 503) {
                 throw new BadRequestError(
                     "Gemini is busy right now. Please try again in a few seconds."
@@ -26,7 +27,7 @@ export const aiService = {
             }
 
             throw new BadRequestError(
-                "Failed to generate AI response. Please try again later."
+                `Failed to generate AI response: ${error.message || error}`
             );
         }
     },
