@@ -1,0 +1,80 @@
+import { GoogleGenAI } from "@google/genai";
+import dotenv from "dotenv";
+import prisma from "../lib/prisma";
+import { BadRequestError } from "../errors";
+
+dotenv.config();
+
+const ai = new GoogleGenAI({
+    apiKey: process.env.GEMINI_API_KEY!,
+});
+
+export const aiService = {
+    async generateResponse(prompt: string) {
+        try {
+            const response = await ai.models.generateContent({
+                model: "gemini-2.5-flash-lite",
+                contents: prompt,
+            });
+
+            return response.text;
+        } catch (error: any) {
+            if (error.status === 503) {
+                throw new BadRequestError(
+                    "Gemini is busy right now. Please try again in a few seconds."
+                );
+            }
+
+            throw new BadRequestError(
+                "Failed to generate AI response. Please try again later."
+            );
+        }
+    },
+    async summarizeRoom(roomId: string, userId: string) {
+        const isMember = await prisma.roomMember.findUnique({
+            where: {
+                userId_roomId: {
+                    roomId,
+                    userId,
+                },
+            },
+        });
+        if (!isMember) {
+            throw new BadRequestError("User is not a member of this room");
+        }
+        const messages = await prisma.message.findMany({
+            where: {
+                roomId,
+            },
+            orderBy: {
+                createdAt: "desc",
+            },
+            take: 30,
+            include: {
+                author: {
+                    select: {
+                        username: true,
+                    },
+                },
+            },
+        });
+        if (messages.length === 0) {
+            throw new BadRequestError(
+                "No messages found in this room"
+            );
+        }
+        const context = messages
+            .reverse()
+            .map((message) => `${message.author.username}: ${message.content}`)
+            .join("\n");
+
+        const prompt = `
+                You are Pyro AI.
+                Summarize this chat conversation in 3-5 concise bullet points.
+                Conversation:
+                ${context}
+            `;
+        const response = await this.generateResponse(prompt);
+        return response;
+    },
+};

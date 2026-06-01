@@ -2,7 +2,7 @@ import express from "express";
 import cors from "cors";
 import fs from "fs";
 import path from "path";
-import { authRouter, roomRouter } from "./routes";
+import { aiRouter, authRouter, roomRouter } from "./routes";
 import { errorMiddleware } from "./middlewares";
 
 const app = express();
@@ -86,6 +86,7 @@ app.post("/api/upload", (req, res, next) => {
 
 app.use("/api/auth", authRouter);
 app.use("/api/rooms", roomRouter);
+app.use("/api/ai", aiRouter);
 
 app.use(errorMiddleware);
 export default app;

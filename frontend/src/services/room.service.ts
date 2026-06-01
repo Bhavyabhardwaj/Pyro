@@ -26,5 +26,10 @@ export const roomService = {
     async joinRoom(roomId: string) {
         const response = await api.post<ApiResponse<null>>(`/rooms/${roomId}/join`);
         return response.data;
+    },
+    async generateRoomSummary(roomId: string) {
+        // Backend maps this to /api/ai/rooms/:roomId/summarize
+        const response = await api.post<ApiResponse<{ summary: string }>>(`/ai/rooms/${roomId}/summarize`);
+        return response.data;
     }
-}
+};
